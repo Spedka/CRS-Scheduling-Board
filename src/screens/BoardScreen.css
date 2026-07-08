@@ -1,0 +1,136 @@
+.board-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* App header */
+.apphead {
+  padding: 18px 18px 0;
+  background: var(--panel);
+}
+
+.apphead .row1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.apphead h1 {
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.apphead .sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.plus-btn {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  transition: background 0.2s;
+}
+
+.plus-btn:active {
+  background: #1b4e5a;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Segment control */
+.seg {
+  display: flex;
+  margin: 12px 18px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.seg-btn {
+  flex: 1;
+  font-size: 14px;
+  padding: 9px 0;
+  border: none;
+  background: var(--panel);
+  cursor: pointer;
+  min-height: 40px;
+  color: var(--muted);
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.seg-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Alert banner */
+.alert {
+  margin: 0 18px 12px;
+  background: var(--ctr-bg);
+  border: 1px solid var(--ctr-bd);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  cursor: pointer;
+}
+
+.alert-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.alert .tx {
+  flex: 1;
+  font-size: 14px;
+  color: var(--ctr-tx);
+}
+
+.alert .tx b {
+  font-weight: 600;
+}
+
+.alert .chev {
+  color: var(--ctr-tx);
+  font-size: 18px;
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  color: var(--muted);
+  font-size: 14px;
+}
