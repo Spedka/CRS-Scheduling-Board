@@ -3,15 +3,17 @@ import { useState, useEffect } from 'react';
 // Suppress TS here for the side-effect CSS import.
 // @ts-ignore
 import './JobsScreen.css';
+import { api } from '../api';
+import { getTechName, initialsOf } from '../auth';
 
 interface JobsScreenProps {
-  onSelect: () => void;
+  onSelect: (job: any) => void;
+  onViewDetail: (job: any) => void;
 }
 
-function JobsScreen({ onSelect }: JobsScreenProps) {
+function JobsScreen({ onSelect, onViewDetail }: JobsScreenProps) {
   const [jobs, setJobs] = useState<any[]>([]);
   const [query, setQuery] = useState('');
-  const [area, setArea] = useState('');
   const [sort] = useState('due');
 
   useEffect(() => {
@@ -19,10 +21,9 @@ function JobsScreen({ onSelect }: JobsScreenProps) {
       try {
         const params = new URLSearchParams();
         if (query) params.append('query', query);
-        if (area) params.append('area', area);
         params.append('sort', sort);
 
-        const res = await fetch(`/api/jobs?${params}`);
+        const res = await api(`/api/jobs?${params}`);
         const data = await res.json();
         setJobs(data.jobs);
       } catch (err) {
@@ -31,7 +32,7 @@ function JobsScreen({ onSelect }: JobsScreenProps) {
     };
 
     fetchJobs();
-  }, [query, area, sort]);
+  }, [query, sort]);
 
   return (
     <div className="jobs-screen">
@@ -41,7 +42,7 @@ function JobsScreen({ onSelect }: JobsScreenProps) {
             <h1>Open jobs</h1>
             <div className="sub">Company backlog</div>
           </div>
-          <div className="avatar">LS</div>
+          <div className="avatar">{initialsOf(getTechName())}</div>
         </div>
       </div>
 
@@ -56,43 +57,23 @@ function JobsScreen({ onSelect }: JobsScreenProps) {
         />
       </div>
 
-      {/* Filters */}
-      <div className="frow">
-        <button
-          className={`fchip ${area === '' ? 'on' : ''}`}
-          onClick={() => setArea('')}
-        >
-          All
-        </button>
-        <button
-          className={`fchip ${area === 'Charlotte' ? 'on' : ''}`}
-          onClick={() => setArea('Charlotte')}
-        >
-          Charlotte
-        </button>
-        <button
-          className={`fchip ${area === 'Raleigh' ? 'on' : ''}`}
-          onClick={() => setArea('Raleigh')}
-        >
-          Raleigh
-        </button>
-      </div>
-
       {/* Jobs list */}
       <div className="jobs">
         {jobs.map((job) => (
           <div key={job.Id} className="jobcard">
-            <div className="info">
+            <div className="info" onClick={() => onViewDetail(job)}>
               <span className="t">
-                <span className="mono">{job.Name}</span> {job.Customer_Name__c}
+                <span className="mono">{job.Name}</span>
               </span>
-              <small>{job.Scope__c} · {job.City__c}</small>
-              <span className={`due ${job.due_soon ? 'hot' : ''}`}>
-                Due {new Date(job.Due_Date__c).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </span>
+              <small>{[job.Customer_Name__c, job.Scope__c, job.City__c].filter(Boolean).join(' · ')}</small>
+              {job.Due_Date__c && (
+                <span className={`due ${job.due_soon ? 'hot' : ''}`}>
+                  Due {new Date(job.Due_Date__c).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </span>
+              )}
             </div>
-            <button className="chalkbtn" onClick={onSelect}>
-              Chalk it
+            <button className="requestbtn" onClick={() => onSelect(job)}>
+              Request
             </button>
           </div>
         ))}

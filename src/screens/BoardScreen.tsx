@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
 import WeekStrip from '../components/WeekStrip';
 import TimelineBoard from '../components/TimelineBoard';
+import { api } from '../api';
+import { getTechName, initialsOf } from '../auth';
 import './BoardScreen.css';
 
 interface BoardScreenProps {
   date: string;
   onDateChange: (date: string) => void;
+  refreshKey?: number;
   onComposerOpen: () => void;
-  onNegotiationOpen: () => void;
+  onTimeOffOpen: () => void;
+  onNegotiationOpen: (request: any) => void;
+  onSlotSelect: (slot: any) => void;
 }
 
-function BoardScreen({ date, onDateChange, onComposerOpen, onNegotiationOpen }: BoardScreenProps) {
+function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onTimeOffOpen, onNegotiationOpen, onSlotSelect }: BoardScreenProps) {
   const [view, setView] = useState<'me' | 'crew'>('me');
   const [boardData, setBoardData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -19,7 +24,7 @@ function BoardScreen({ date, onDateChange, onComposerOpen, onNegotiationOpen }: 
     const fetchBoard = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/board?start=${date}`);
+        const res = await api(`/api/board?start=${date}&view=${view}`);
         const data = await res.json();
         setBoardData(data);
       } catch (err) {
@@ -29,7 +34,7 @@ function BoardScreen({ date, onDateChange, onComposerOpen, onNegotiationOpen }: 
     };
 
     fetchBoard();
-  }, [date]);
+  }, [date, view, refreshKey]);
 
   const handleDateChange = (newDate: string) => {
     onDateChange(newDate);
@@ -40,12 +45,19 @@ function BoardScreen({ date, onDateChange, onComposerOpen, onNegotiationOpen }: 
       {/* Header */}
       <div className="apphead">
         <div className="row1">
-          <div>
+          <div className="head-text">
             <h1>Your schedule</h1>
-            <div className="sub">Monday, July 14</div>
+            <div className="sub">
+              {new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </div>
           </div>
+          <button className="timeoff-btn" onClick={onTimeOffOpen}>New Time Off Request</button>
           <button className="plus-btn" onClick={onComposerOpen}>+</button>
-          <div className="avatar">LS</div>
+          <div className="avatar">{initialsOf(getTechName())}</div>
         </div>
       </div>
 
@@ -70,7 +82,7 @@ function BoardScreen({ date, onDateChange, onComposerOpen, onNegotiationOpen }: 
 
       {/* Countered banner (if any) */}
       {boardData?.countered && (
-        <div className="alert" onClick={onNegotiationOpen}>
+        <div className="alert" onClick={() => onNegotiationOpen(boardData.countered)}>
           <div className="alert-content">
             <div className="tx">
               <b>{boardData.countered.jobName}</b>
@@ -88,6 +100,7 @@ function BoardScreen({ date, onDateChange, onComposerOpen, onNegotiationOpen }: 
           slots={boardData.slots}
           view={view}
           date={date}
+          onSlotSelect={onSlotSelect}
         />
       )}
 

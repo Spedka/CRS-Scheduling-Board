@@ -21,6 +21,8 @@
   --off-bg: #ECEEEC;
   --off-tx: #4A524D;
   --avail: #EF4444;
+  --conflict: #B91C1C;
+  --conflict-bg: #FEE2E2;
 }
 
 * {

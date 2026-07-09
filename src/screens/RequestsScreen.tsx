@@ -1,23 +1,45 @@
 import { useState, useEffect } from 'react';
 // @ts-ignore
 import './RequestsScreen.css';
+import { api } from '../api';
+import { getTechName, initialsOf } from '../auth';
 
-function RequestsScreen() {
+interface RequestsScreenProps {
+  onCountChange?: (count: number) => void;
+}
+
+// Needs a reply or is still waiting on the office -- not yet resolved.
+export const isOpen = (status: string) => status === 'Requested' || status === 'Countered';
+
+function RequestsScreen({ onCountChange }: RequestsScreenProps) {
   const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchRequests = async () => {
+    try {
+      const res = await api('/api/requests?mine=1');
+      const data = await res.json();
+      setRequests(data.requests);
+      onCountChange?.(data.requests.filter((r: any) => isOpen(r.Status__c)).length);
+    } catch (err) {
+      console.error('Failed to fetch requests:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      try {
-        const res = await fetch('/api/requests?mine=1');
-        const data = await res.json();
-        setRequests(data.requests);
-      } catch (err) {
-        console.error('Failed to fetch requests:', err);
-      }
-    };
-
     fetchRequests();
   }, []);
+
+  const handleWithdraw = async (id: string) => {
+    try {
+      await api(`/api/requests/${id}/withdraw`, { method: 'POST' });
+      fetchRequests();
+    } catch (err) {
+      console.error('Failed to withdraw request:', err);
+    }
+  };
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -55,13 +77,16 @@ function RequestsScreen() {
         <div className="row1">
           <div>
             <h1>My requests</h1>
-            <div className="sub">Everything you have chalked</div>
+            <div className="sub">Everything you have requested</div>
           </div>
-          <div className="avatar">LS</div>
+          <div className="avatar">{initialsOf(getTechName())}</div>
         </div>
       </div>
 
       <div className="reqs">
+        {!loading && requests.length === 0 && (
+          <div className="empty">No current requests</div>
+        )}
         {requests.map((req) => (
           <div key={req.Id} className="reqcard">
             <div className="top">
@@ -93,7 +118,9 @@ function RequestsScreen() {
                 <button className="linkbtn">Respond</button>
               )}
               {req.Status__c === 'Requested' && (
-                <button className="linkbtn warn">Withdraw</button>
+                <button className="linkbtn warn" onClick={() => handleWithdraw(req.Id)}>
+                  Withdraw
+                </button>
               )}
             </div>
           </div>

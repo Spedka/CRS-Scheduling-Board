@@ -13,6 +13,24 @@
   flex-direction: column;
 }
 
+.no-access {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+  gap: 8px;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+.no-access p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
 /* Tab bar */
 .tabbar {
   display: flex;
@@ -160,6 +178,12 @@
 
 .bigbtn:active {
   background: #1b4e5a;
+}
+
+.bigbtn:disabled {
+  background: var(--line-strong);
+  color: var(--muted);
+  cursor: default;
 }
 
 .bigbtn.ghost {

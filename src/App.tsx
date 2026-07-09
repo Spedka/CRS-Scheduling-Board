@@ -1,30 +1,78 @@
 import { useState, useEffect } from 'react';
 import BoardScreen from './screens/BoardScreen.tsx';
 import JobsScreen from './screens/JobsScreen.tsx';
-import RequestsScreen from './screens/RequestsScreen.tsx';
+import RequestsScreen, { isOpen } from './screens/RequestsScreen.tsx';
 import ComposerSheet from './sheets/ComposerSheet.tsx';
 import NegotiationSheet from './sheets/NegotiationSheet.tsx';
+import JobDetailSheet from './sheets/JobDetailSheet.tsx';
+import { getDeviceToken, redeemTokenFromUrl } from './auth';
+import { api } from './api';
 // @ts-ignore: CSS side-effect import without type declarations
 import './App.css';
 
 type Screen = 'board' | 'jobs' | 'requests';
-type Sheet = 'composer' | 'negotiation' | null;
+type Sheet = 'composer' | 'negotiation' | 'jobDetail' | null;
 
 function App() {
   const [activeScreen, setActiveScreen] = useState<Screen>('board');
   const [activeSheet, setActiveSheet] = useState<Sheet>(null);
-  const [userId] = useState('u001');
   const [selectedDate, setSelectedDate] = useState(() => {
+    // Local date, not toISOString() -- that reports the UTC calendar date,
+    // which is a day ahead of "today" in the evening in US timezones.
     const today = new Date();
-    return today.toISOString().split('T')[0];
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   });
+  const [composerJob, setComposerJob] = useState<any>(null);
+  const [composerMode, setComposerMode] = useState<'job' | 'timeOff'>('job');
+  const [negotiationRequest, setNegotiationRequest] = useState<any>(null);
+  const [selectedSlot, setSelectedSlot] = useState<any>(null);
+  const [slotDetailDate, setSlotDetailDate] = useState<string | undefined>(undefined);
+  const [boardRefreshKey, setBoardRefreshKey] = useState(0);
+  const [requestCount, setRequestCount] = useState(0);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authed, setAuthed] = useState(false);
 
-  // Mock: set auth header for dev
   useEffect(() => {
-    const headers = new Headers();
-    headers.set('Authorization', `Bearer ${userId}`);
-    (window as any).__authHeaders = headers;
-  }, [userId]);
+    redeemTokenFromUrl().then(() => {
+      setAuthed(!!getDeviceToken());
+      setAuthChecked(true);
+    });
+  }, []);
+
+  // Independent of RequestsScreen's own fetch -- the tab badge has to be
+  // right even before the user ever opens that tab.
+  useEffect(() => {
+    if (!authed) return;
+    const fetchCount = async () => {
+      try {
+        const res = await api('/api/requests?mine=1');
+        const data = await res.json();
+        setRequestCount(data.requests.filter((r: any) => isOpen(r.Status__c)).length);
+      } catch (err) {
+        console.error('Failed to fetch request count:', err);
+      }
+    };
+    fetchCount();
+  }, [authed, boardRefreshKey]);
+
+  const closeSheet = () => {
+    setActiveSheet(null);
+    setComposerJob(null);
+    setNegotiationRequest(null);
+    setSelectedSlot(null);
+    setSlotDetailDate(undefined);
+  };
+
+  if (!authChecked) return null;
+
+  if (!authed) {
+    return (
+      <div className="no-access">
+        <h1>No access yet</h1>
+        <p>Ask the office for your link to get set up on this device.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -33,25 +81,95 @@ function App() {
           <BoardScreen
             date={selectedDate}
             onDateChange={setSelectedDate}
-            onComposerOpen={() => setActiveSheet('composer')}
-            onNegotiationOpen={() => setActiveSheet('negotiation')}
+            refreshKey={boardRefreshKey}
+            onComposerOpen={() => {
+              setComposerMode('job');
+              setActiveSheet('composer');
+            }}
+            onTimeOffOpen={() => {
+              setComposerMode('timeOff');
+              setActiveSheet('composer');
+            }}
+            onNegotiationOpen={(request) => {
+              setNegotiationRequest(request);
+              setActiveSheet('negotiation');
+            }}
+            onSlotSelect={(slot) => {
+              setSelectedSlot(slot);
+              setSlotDetailDate(selectedDate);
+              setActiveSheet('jobDetail');
+            }}
           />
         )}
-        {activeScreen === 'jobs' && <JobsScreen onSelect={() => setActiveSheet('composer')} />}
-        {activeScreen === 'requests' && <RequestsScreen />}
+        {activeScreen === 'jobs' && (
+          <JobsScreen
+            onSelect={(job) => {
+              setComposerJob(job);
+              setActiveSheet('composer');
+            }}
+            onViewDetail={(job) => {
+              setSelectedSlot({
+                jobId: job.Id,
+                jobName: job.Name,
+                customerName: job.Customer_Name__c,
+                scope: job.Scope__c,
+                city: job.City__c,
+                address: job.Address,
+                dueDate: job.Due_Date__c,
+              });
+              setActiveSheet('jobDetail');
+            }}
+          />
+        )}
+        {activeScreen === 'requests' && <RequestsScreen onCountChange={setRequestCount} />}
       </div>
 
       {/* Scrim for sheets */}
       {activeSheet && (
-        <div className="scrim" onClick={() => setActiveSheet(null)} />
+        <div className="scrim" onClick={closeSheet} />
       )}
 
       {/* Sheets */}
       {activeSheet === 'composer' && (
-        <ComposerSheet onClose={() => setActiveSheet(null)} selectedDate={selectedDate} />
+        <ComposerSheet
+          onClose={closeSheet}
+          selectedDate={selectedDate}
+          preselectedJob={composerJob}
+          mode={composerMode}
+          onCreated={() => {
+            setBoardRefreshKey((k) => k + 1);
+            closeSheet();
+          }}
+        />
       )}
-      {activeSheet === 'negotiation' && (
-        <NegotiationSheet onClose={() => setActiveSheet(null)} />
+      {activeSheet === 'negotiation' && negotiationRequest && (
+        <NegotiationSheet
+          request={negotiationRequest}
+          onClose={closeSheet}
+          onResolved={() => setBoardRefreshKey((k) => k + 1)}
+        />
+      )}
+      {activeSheet === 'jobDetail' && selectedSlot && (
+        <JobDetailSheet
+          slot={selectedSlot}
+          date={slotDetailDate}
+          onClose={closeSheet}
+          onRequest={(jobId) => {
+            setComposerJob({
+              Id: jobId,
+              Name: selectedSlot.jobName,
+              Customer_Name__c: selectedSlot.customerName,
+              Scope__c: selectedSlot.scope,
+              City__c: selectedSlot.city,
+              Address: selectedSlot.address,
+              Due_Date__c: selectedSlot.dueDate,
+            });
+            setComposerMode('job');
+            setSelectedSlot(null);
+            setSlotDetailDate(undefined);
+            setActiveSheet('composer');
+          }}
+        />
       )}
 
       {/* Tab bar */}
@@ -72,7 +190,7 @@ function App() {
           className={`tab ${activeScreen === 'requests' ? 'on' : ''}`}
           onClick={() => setActiveScreen('requests')}
         >
-          <span className="badge">1</span>
+          {requestCount > 0 && <span className="badge">{requestCount}</span>}
           <span className="ic">✏️</span>Requests
         </button>
       </div>

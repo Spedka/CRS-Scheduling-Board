@@ -1,29 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { api } from '../api';
 import './NegotiationSheet.css';
 
-interface NegotiationSheetProps {
-  onClose: () => void;
+interface CounteredRequest {
+  requestId: string;
+  jobName: string;
+  age: string;
 }
 
-function NegotiationSheet({ onClose }: NegotiationSheetProps) {
-  const [action, setAction] = useState<'accept' | 'counter' | null>(null);
-  const [counterDate, setCounterDate] = useState('2026-07-16');
-  const [counterStart, setCounterStart] = useState('08:00');
-  const [counterEnd, setCounterEnd] = useState('11:00');
+interface NegotiationSheetProps {
+  request: CounteredRequest;
+  onClose: () => void;
+  onResolved: () => void;
+}
 
-  // Mock data from the negotiation context
-  const jobName = 'J-1077 Atrium Health';
-  const scope = 'Fire panel inspection, building C';
-  const yourProposed = 'Tue Jul 14, 8:00 am';
-  const officeCountered = 'Thu Jul 16, 8:00 am';
+const formatOffer = (date: string, start: string, end: string) =>
+  `${new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })}, ${start} to ${end}`;
+
+function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProps) {
+  const [action, setAction] = useState<'accept' | 'counter' | null>(null);
+  const [detail, setDetail] = useState<any>(null);
+  const [counterDate, setCounterDate] = useState('');
+  const [counterStart, setCounterStart] = useState('08:00');
+  const [counterEnd, setCounterEnd] = useState('12:00');
+
+  useEffect(() => {
+    const fetchDetail = async () => {
+      try {
+        const res = await api('/api/requests?mine=1');
+        const data = await res.json();
+        const req = data.requests.find((r: any) => r.Id === request.requestId);
+        setDetail(req);
+        if (req) {
+          setCounterDate(req.Proposed_Date__c);
+          setCounterStart(req.Proposed_Start__c);
+          setCounterEnd(req.Proposed_End__c);
+        }
+      } catch (err) {
+        console.error('Failed to fetch request detail:', err);
+      }
+    };
+
+    fetchDetail();
+  }, [request.requestId]);
 
   const handleAccept = async () => {
     try {
-      await fetch('/api/requests/r001/accept', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      await api(`/api/requests/${request.requestId}/accept`, { method: 'POST', body: JSON.stringify({}) });
+      onResolved();
       onClose();
     } catch (err) {
       console.error('Failed to accept:', err);
@@ -32,15 +60,11 @@ function NegotiationSheet({ onClose }: NegotiationSheetProps) {
 
   const handleCounter = async () => {
     try {
-      await fetch('/api/requests/r001/counter', {
+      await api(`/api/requests/${request.requestId}/counter`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: counterDate,
-          start: counterStart,
-          end: counterEnd,
-        }),
+        body: JSON.stringify({ date: counterDate, start: counterStart, end: counterEnd }),
       });
+      onResolved();
       onClose();
     } catch (err) {
       console.error('Failed to counter:', err);
@@ -62,33 +86,35 @@ function NegotiationSheet({ onClose }: NegotiationSheetProps) {
     }
   };
 
+  const jobNumber = request.jobName.split(' ')[0];
+  const jobRest = request.jobName.split(' ').slice(1).join(' ');
+  const officeCountered = detail
+    ? formatOffer(detail.Proposed_Date__c, detail.Proposed_Start__c, detail.Proposed_End__c)
+    : '…';
+
   return (
     <div className="sheet nego-sheet">
       <div className="grab" />
       <h3>
-        <span className="mono">{jobName.split(' ')[0]}</span> {jobName.split(' ').slice(1).join(' ')}
+        <span className="mono">{jobNumber}</span> {jobRest}
       </h3>
-      <p className="sub">{scope}</p>
+      {detail?.Note__c && <p className="sub">{detail.Note__c}</p>}
 
       <div className="offers">
-        <div className="offer">
-          <span className="k">You proposed</span>
-          <span className="v">{yourProposed}</span>
-        </div>
         <div className="offer">
           <span className="k">Office countered</span>
           <span className="v hot">{officeCountered}</span>
         </div>
         <div className="offer" style={{ border: 'none' }}>
           <span className="k">Waiting on</span>
-          <span className="v">You, 4 hours</span>
+          <span className="v">You, {request.age}</span>
         </div>
       </div>
 
       {action === null && (
         <>
-          <button className="bigbtn" onClick={handleAccept}>
-            Accept {officeCountered.split(', ')[0]}
+          <button className="bigbtn" onClick={handleAccept} disabled={!detail}>
+            Accept {detail ? formatOffer(detail.Proposed_Date__c, detail.Proposed_Start__c, detail.Proposed_End__c).split(', ')[0] : ''}
           </button>
           <button
             className="bigbtn ghost"

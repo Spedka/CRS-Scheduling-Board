@@ -57,6 +57,13 @@
   background: var(--panel);
 }
 
+.empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 48px 0;
+}
+
 .reqcard .top {
   display: flex;
   justify-content: space-between;
