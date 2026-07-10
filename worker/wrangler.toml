@@ -1,0 +1,18 @@
+name = "chalkboard"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+# Frontend build output, served directly at the edge. Requests that don't
+# match a static file (the /api/* and /auth/* routes) fall through to the
+# Hono fetch handler in src/index.ts untouched -- one worker, one origin,
+# no CORS needed since the frontend's fetch calls are already relative paths.
+[assets]
+directory = "../frontend/dist"
+
+[vars]
+APP_URL = "https://chalkboard.crsbas.workers.dev"
+
+# When the crs-dispatch service binding lands, add:
+# [[services]]
+# binding = "DISPATCH"
+# service = "crs-dispatch"

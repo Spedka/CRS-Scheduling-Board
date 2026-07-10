@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #EDF0ED;
+  --panel: #FFFFFF;
+  --ink: #1E2523;
+  --muted: #67716C;
+  --line: #DEE3E0;
+  --line-strong: #C4CCC7;
+  --accent: #23606E;
+  --accent-soft: #E2EEF1;
+  --sched-bg: #E4F1E3;
+  --sched-tx: #2C6132;
+  --sched-bd: #A8CCA6;
+  --pend-bg: #FBF0D6;
+  --pend-tx: #7E5407;
+  --pend-bd: #E4C878;
+  --ctr-bg: #FBE3DC;
+  --ctr-tx: #96351E;
+  --ctr-bd: #E5A891;
+  --off-bg: #ECEEEC;
+  --off-tx: #4A524D;
+  --avail: #EF4444;
+  --conflict: #B91C1C;
+  --conflict-bg: #FEE2E2;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  font-family: 'Barlow', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+input, button, select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
