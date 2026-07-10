@@ -151,7 +151,9 @@
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  font-size: 15px;
+  /* 16px, not 15 -- iOS Safari auto-zooms on focusing any input under that
+     size, regardless of the viewport's user-scalable setting. */
+  font-size: 16px;
   background: var(--panel);
   color: var(--ink);
 }
