@@ -4,7 +4,7 @@
   --bg: #EDF0ED;
   --panel: #FFFFFF;
   --ink: #1E2523;
-  --muted: #67716C;
+  --muted: #5C665F;
   --line: #DEE3E0;
   --line-strong: #C4CCC7;
   --accent: #23606E;
@@ -34,6 +34,9 @@
 html, body, #root {
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  position: fixed;
+  overscroll-behavior: none;
 }
 
 body {

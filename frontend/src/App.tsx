@@ -5,7 +5,7 @@ import RequestsScreen, { isOpen } from './screens/RequestsScreen.tsx';
 import ComposerSheet from './sheets/ComposerSheet.tsx';
 import NegotiationSheet from './sheets/NegotiationSheet.tsx';
 import JobDetailSheet from './sheets/JobDetailSheet.tsx';
-import { getDeviceToken, redeemTokenFromUrl } from './auth';
+import { getDeviceToken, redeemTokenFromUrl, redeemTokenFromPastedInput } from './auth';
 import { api } from './api';
 // @ts-ignore: CSS side-effect import without type declarations
 import './App.css';
@@ -31,6 +31,9 @@ function App() {
   const [requestCount, setRequestCount] = useState(0);
   const [authChecked, setAuthChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [pastedLink, setPastedLink] = useState('');
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [redeeming, setRedeeming] = useState(false);
 
   useEffect(() => {
     redeemTokenFromUrl().then(() => {
@@ -38,6 +41,18 @@ function App() {
       setAuthChecked(true);
     });
   }, []);
+
+  // Sheets are position:fixed, but without this the underlying page can
+  // still scroll -- and on mobile, focusing an input (e.g. autoFocus on
+  // the job search box) makes the browser scroll the focused element into
+  // view by scrolling the document, dragging the fixed sheet off-screen
+  // along with it instead of just scrolling within the sheet itself.
+  useEffect(() => {
+    document.body.style.overflow = activeSheet ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [activeSheet]);
 
   // Independent of RequestsScreen's own fetch -- the tab badge has to be
   // right even before the user ever opens that tab.
@@ -55,6 +70,19 @@ function App() {
     fetchCount();
   }, [authed, refreshKey]);
 
+  const handleRedeemPasted = async () => {
+    setRedeemError(null);
+    setRedeeming(true);
+    const ok = await redeemTokenFromPastedInput(pastedLink);
+    setRedeeming(false);
+    if (ok) {
+      setAuthed(true);
+      setPastedLink('');
+    } else {
+      setRedeemError("That link didn't work. Ask the office to resend it.");
+    }
+  };
+
   const closeSheet = () => {
     setActiveSheet(null);
     setComposerJob(null);
@@ -69,14 +97,31 @@ function App() {
     return (
       <div className="no-access">
         <h1>No access yet</h1>
-        <p>Ask the office for your link to get set up on this device.</p>
+        <p>Ask the office for your link, then paste it below to set up this device.</p>
+        <div className="field" style={{ width: '100%', maxWidth: 320 }}>
+          <input
+            type="text"
+            inputMode="url"
+            placeholder="Paste your link here"
+            value={pastedLink}
+            onChange={(e) => setPastedLink(e.target.value)}
+          />
+        </div>
+        {redeemError && <p style={{ color: 'var(--ctr-tx)' }}>{redeemError}</p>}
+        <button
+          className="bigbtn"
+          disabled={!pastedLink.trim() || redeeming}
+          onClick={handleRedeemPasted}
+        >
+          {redeeming ? 'Checking...' : 'Use this link'}
+        </button>
       </div>
     );
   }
 
   return (
     <div className="app">
-      <div className="screen-container">
+      <main className="screen-container">
         {activeScreen === 'board' && (
           <BoardScreen
             date={selectedDate}
@@ -132,7 +177,7 @@ function App() {
             }}
           />
         )}
-      </div>
+      </main>
 
       {/* Scrim for sheets */}
       {activeSheet && (

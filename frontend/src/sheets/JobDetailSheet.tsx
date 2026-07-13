@@ -1,4 +1,4 @@
-import './JobDetailSheet.css';
+import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
 
 interface TimePoint {
   hour: number;
@@ -49,9 +49,10 @@ const formatDate = (dateStr: string) => {
 };
 
 function JobDetailSheet({ slot, date, onClose, onRequest }: JobDetailSheetProps) {
+  const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss<HTMLDivElement>(onClose);
   return (
-    <div className="sheet job-detail-sheet">
-      <div className="grab" />
+    <div className="sheet job-detail-sheet" ref={sheetRef}>
+      <div className="grab" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} />
       <h3>{slot.jobName || 'Time off'}</h3>
       {slot.customerName && <p className="sub">{slot.customerName}</p>}
       {slot.address && <p className="sub">{slot.address}</p>}

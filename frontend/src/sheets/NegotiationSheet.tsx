@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
+// TypeScript may complain about side-effect CSS imports if no declaration is present.
+// Suppress the error for this import here.
+// @ts-ignore
 import './NegotiationSheet.css';
 
 interface CounteredRequest {
@@ -22,6 +26,7 @@ const formatOffer = (date: string, start: string, end: string) =>
   })}, ${start} to ${end}`;
 
 function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProps) {
+  const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss<HTMLDivElement>(onClose);
   const [action, setAction] = useState<'accept' | 'counter' | null>(null);
   const [detail, setDetail] = useState<any>(null);
   const [counterDate, setCounterDate] = useState('');
@@ -103,8 +108,8 @@ function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProp
     : '…';
 
   return (
-    <div className="sheet nego-sheet">
-      <div className="grab" />
+    <div className="sheet nego-sheet" ref={sheetRef}>
+      <div className="grab" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} />
       <h3>
         <span className="mono">{jobNumber}</span> {jobRest}
       </h3>

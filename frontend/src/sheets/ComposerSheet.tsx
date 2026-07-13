@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '../api';
+import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
 // @ts-ignore: CSS side-effect import declaration not available in this project setup
 import './ComposerSheet.css';
 
@@ -35,6 +36,14 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
   const [endTime, setEndTime] = useState('10:00');
   const [note, setNote] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
+  const jobSearchInputRef = useRef<HTMLInputElement>(null);
+  const { sheetRef: composerSheetRef, onTouchStart: composerTouchStart, onTouchMove: composerTouchMove, onTouchEnd: composerTouchEnd } =
+    useSwipeToDismiss<HTMLDivElement>(onClose);
+  const { sheetRef: jobPickerRef, onTouchStart: jobPickerTouchStart, onTouchMove: jobPickerTouchMove, onTouchEnd: jobPickerTouchEnd } =
+    useSwipeToDismiss<HTMLDivElement>(() => {
+      setPickerOpen(false);
+      setJobSearch('');
+    });
   const [jobSearch, setJobSearch] = useState('');
   const [timeManuallySet, setTimeManuallySet] = useState(false);
   const [allDay, setAllDay] = useState(false);
@@ -74,6 +83,19 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
       clearTimeout(debounce);
     };
   }, [isTimeOffMode, jobSearch]);
+
+  // autoFocus fires the instant the input mounts, which is mid-slide-up
+  // (job-picker's own 0.3s animation) -- iOS calculates keyboard/viewport
+  // repositioning based on the input's position at that exact moment, and
+  // catching it mid-animation is what makes the sheet jump. Waiting for
+  // the animation to finish first fixes it.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const timer = setTimeout(() => {
+      jobSearchInputRef.current?.focus();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [pickerOpen]);
 
   // Default the window to the tech's next open 2h gap, starting from the
   // selected date. If that day has nothing (starting no earlier than 8am,
@@ -308,8 +330,8 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
   };
 
   return (
-    <div className="sheet composer-sheet">
-      <div className="grab" />
+    <div className="sheet composer-sheet" ref={composerSheetRef}>
+      <div className="grab" onTouchStart={composerTouchStart} onTouchMove={composerTouchMove} onTouchEnd={composerTouchEnd} />
       <h3>{isTimeOffMode ? 'Request time off' : 'New request'}</h3>
       <p className="sub">Sends a request to the office. Not on the schedule until approved.</p>
 
@@ -328,12 +350,12 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
       {pickerOpen && (
         <>
           <div className="scrim job-picker-scrim" onClick={closePicker} />
-          <div className="job-picker">
-            <div className="grab" />
+          <div className="job-picker" ref={jobPickerRef}>
+            <div className="grab" onTouchStart={jobPickerTouchStart} onTouchMove={jobPickerTouchMove} onTouchEnd={jobPickerTouchEnd} />
             <div className="job-picker-search">
               <span className="search-icon">🔍</span>
               <input
-                autoFocus
+                ref={jobSearchInputRef}
                 type="text"
                 placeholder="Search jobs..."
                 value={jobSearch}
