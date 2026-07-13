@@ -1,4 +1,5 @@
 import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
+import './JobDetailSheet.css';
 
 interface TimePoint {
   hour: number;
