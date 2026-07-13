@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../api';
+// @ts-ignore: CSS side-effect import declaration not available in this project setup
 import './ComposerSheet.css';
 
 // Sentinel job_id for "New WO Required" -- matches what both stores'

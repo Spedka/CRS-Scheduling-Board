@@ -33,6 +33,15 @@
   border-radius: 6px;
 }
 
+.office-note-nego {
+  font-size: 13px;
+  color: var(--ctr-tx);
+  background: var(--ctr-bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 18px 12px;
+}
+
 .times {
   display: flex;
   gap: 12px;

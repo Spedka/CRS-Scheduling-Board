@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 // CSS module type declarations should live in a separate .d.ts file.
 // Suppress TS here for the side-effect CSS import.
 // @ts-ignore
@@ -11,28 +11,56 @@ interface JobsScreenProps {
   onViewDetail: (job: any) => void;
 }
 
+const PAGE_SIZE = 25;
+
 function JobsScreen({ onSelect, onViewDetail }: JobsScreenProps) {
   const [jobs, setJobs] = useState<any[]>([]);
   const [query, setQuery] = useState('');
   const [sort] = useState('due');
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        const params = new URLSearchParams();
-        if (query) params.append('query', query);
-        params.append('sort', sort);
+  const fetchPage = useCallback(async (offset: number, reset: boolean) => {
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams();
+      if (query) params.append('query', query);
+      params.append('sort', sort);
+      params.append('limit', String(PAGE_SIZE));
+      params.append('offset', String(offset));
 
-        const res = await api(`/api/jobs?${params}`);
-        const data = await res.json();
-        setJobs(data.jobs);
-      } catch (err) {
-        console.error('Failed to fetch jobs:', err);
-      }
-    };
-
-    fetchJobs();
+      const res = await api(`/api/jobs?${params}`);
+      const data = await res.json();
+      setJobs((prev) => (reset ? data.jobs : [...prev, ...data.jobs]));
+      setHasMore(data.jobs.length === PAGE_SIZE);
+    } catch (err) {
+      console.error('Failed to fetch jobs:', err);
+    } finally {
+      setLoadingMore(false);
+    }
   }, [query, sort]);
+
+  // New search/sort: start over from the first page.
+  useEffect(() => {
+    fetchPage(0, true);
+  }, [fetchPage]);
+
+  // Infinite scroll: load the next page once the sentinel at the bottom of
+  // the list scrolls into view, same 25-at-a-time page the initial load
+  // uses -- keeps the backlog fast to open instead of fetching everything
+  // up front.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore && !loadingMore) {
+        fetchPage(jobs.length, false);
+      }
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [fetchPage, hasMore, loadingMore, jobs.length]);
 
   return (
     <div className="jobs-screen">
@@ -77,6 +105,8 @@ function JobsScreen({ onSelect, onViewDetail }: JobsScreenProps) {
             </button>
           </div>
         ))}
+        {hasMore && <div ref={sentinelRef} className="jobs-sentinel" />}
+        {loadingMore && <div className="jobs-loading-more">Loading more…</div>}
       </div>
     </div>
   );

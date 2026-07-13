@@ -71,6 +71,16 @@ function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProp
     }
   };
 
+  const handleWithdraw = async () => {
+    try {
+      await api(`/api/requests/${request.requestId}/withdraw`, { method: 'POST' });
+      onResolved();
+      onClose();
+    } catch (err) {
+      console.error('Failed to withdraw:', err);
+    }
+  };
+
   const handleCounterTimeStep = (field: string, direction: number) => {
     const time = field === 'start' ? counterStart : counterEnd;
     const [h, m] = time.split(':').map(Number);
@@ -99,6 +109,9 @@ function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProp
         <span className="mono">{jobNumber}</span> {jobRest}
       </h3>
       {detail?.Note__c && <p className="sub">{detail.Note__c}</p>}
+      {detail?.Office_Note__c && (
+        <p className="office-note-nego">{detail.Office_Note__c}</p>
+      )}
 
       <div className="offers">
         <div className="offer">
@@ -122,6 +135,13 @@ function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProp
             style={{ marginTop: '9px' }}
           >
             Offer another time
+          </button>
+          <button
+            className="bigbtn ghost warn"
+            onClick={handleWithdraw}
+            style={{ marginTop: '9px' }}
+          >
+            Cancel request
           </button>
         </>
       )}

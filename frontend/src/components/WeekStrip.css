@@ -1,8 +1,35 @@
+.weekstrip-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 6px 10px;
+  background: var(--panel);
+}
+
+.week-nav {
+  flex-shrink: 0;
+  width: 26px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.week-nav:active {
+  opacity: 0.6;
+}
+
 .weekstrip {
   display: flex;
   gap: 5px;
-  padding: 14px 18px 10px;
-  background: var(--panel);
+  flex: 1;
+  min-width: 0;
 }
 
 .day {

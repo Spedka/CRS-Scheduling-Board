@@ -54,6 +54,15 @@ function WeekStrip({ selectedDate, onDateChange }: WeekStripProps) {
 
   const weekStart = days[0]?.dateStr;
 
+  // Shifts the whole strip by a week: the strip always re-derives its 7
+  // days from selectedDate, so moving that by +/-7 keeps the same weekday
+  // selected in the new week rather than snapping to its Sunday.
+  const shiftWeek = (deltaDays: number) => {
+    const d = parseLocalDate(selectedDate);
+    d.setDate(d.getDate() + deltaDays);
+    onDateChange(formatLocalDate(d));
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -86,25 +95,43 @@ function WeekStrip({ selectedDate, onDateChange }: WeekStripProps) {
   }, [weekStart]);
 
   return (
-    <div className="weekstrip">
-      {days.map((day) => {
-        const dayActivity = activity[day.dateStr];
-        return (
-          <button
-            key={day.dateStr}
-            className={`day ${selectedDate === day.dateStr ? 'sel' : ''}`}
-            onClick={() => onDateChange(day.dateStr)}
-          >
-            <small>{day.dayName}</small>
-            <b>{day.dayNum}</b>
-            <div className="dots">
-              {dayActivity?.scheduled && <i className="dot-0" />}
-              {dayActivity?.pending && <i className="dot-1" />}
-              {dayActivity?.countered && <i className="dot-2" />}
-            </div>
-          </button>
-        );
-      })}
+    <div className="weekstrip-row">
+      <button
+        type="button"
+        className="week-nav"
+        aria-label="Previous week"
+        onClick={() => shiftWeek(-7)}
+      >
+        ‹
+      </button>
+      <div className="weekstrip">
+        {days.map((day) => {
+          const dayActivity = activity[day.dateStr];
+          return (
+            <button
+              key={day.dateStr}
+              className={`day ${selectedDate === day.dateStr ? 'sel' : ''}`}
+              onClick={() => onDateChange(day.dateStr)}
+            >
+              <small>{day.dayName}</small>
+              <b>{day.dayNum}</b>
+              <div className="dots">
+                {dayActivity?.scheduled && <i className="dot-0" />}
+                {dayActivity?.pending && <i className="dot-1" />}
+                {dayActivity?.countered && <i className="dot-2" />}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        className="week-nav"
+        aria-label="Next week"
+        onClick={() => shiftWeek(7)}
+      >
+        ›
+      </button>
     </div>
   );
 }

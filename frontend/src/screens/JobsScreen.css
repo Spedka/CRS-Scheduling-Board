@@ -80,6 +80,17 @@
   overflow-y: auto;
 }
 
+.jobs-sentinel {
+  height: 1px;
+}
+
+.jobs-loading-more {
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 12px 0;
+}
+
 .jobcard {
   border: 1px solid var(--line);
   border-radius: 12px;

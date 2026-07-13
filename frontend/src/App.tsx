@@ -27,7 +27,7 @@ function App() {
   const [negotiationRequest, setNegotiationRequest] = useState<any>(null);
   const [selectedSlot, setSelectedSlot] = useState<any>(null);
   const [slotDetailDate, setSlotDetailDate] = useState<string | undefined>(undefined);
-  const [boardRefreshKey, setBoardRefreshKey] = useState(0);
+  const [refreshKey, bumpRefresh] = useState(0);
   const [requestCount, setRequestCount] = useState(0);
   const [authChecked, setAuthChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
@@ -53,7 +53,7 @@ function App() {
       }
     };
     fetchCount();
-  }, [authed, boardRefreshKey]);
+  }, [authed, refreshKey]);
 
   const closeSheet = () => {
     setActiveSheet(null);
@@ -81,7 +81,7 @@ function App() {
           <BoardScreen
             date={selectedDate}
             onDateChange={setSelectedDate}
-            refreshKey={boardRefreshKey}
+            refreshKey={refreshKey}
             onComposerOpen={() => {
               setComposerMode('job');
               setActiveSheet('composer');
@@ -121,7 +121,17 @@ function App() {
             }}
           />
         )}
-        {activeScreen === 'requests' && <RequestsScreen onCountChange={setRequestCount} />}
+        {activeScreen === 'requests' && (
+          <RequestsScreen
+            refreshKey={refreshKey}
+            onCountChange={setRequestCount}
+            onMutated={() => bumpRefresh((k) => k + 1)}
+            onNegotiationOpen={(request) => {
+              setNegotiationRequest(request);
+              setActiveSheet('negotiation');
+            }}
+          />
+        )}
       </div>
 
       {/* Scrim for sheets */}
@@ -137,7 +147,7 @@ function App() {
           preselectedJob={composerJob}
           mode={composerMode}
           onCreated={() => {
-            setBoardRefreshKey((k) => k + 1);
+            bumpRefresh((k) => k + 1);
             closeSheet();
           }}
         />
@@ -146,7 +156,7 @@ function App() {
         <NegotiationSheet
           request={negotiationRequest}
           onClose={closeSheet}
-          onResolved={() => setBoardRefreshKey((k) => k + 1)}
+          onResolved={() => bumpRefresh((k) => k + 1)}
         />
       )}
       {activeSheet === 'jobDetail' && selectedSlot && (

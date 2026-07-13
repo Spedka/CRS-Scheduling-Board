@@ -125,6 +125,20 @@
   color: var(--off-tx);
 }
 
+.st.d {
+  background: var(--ctr-bg);
+  color: var(--ctr-tx);
+}
+
+.office-note {
+  font-size: 13px;
+  color: var(--ctr-tx);
+  background: var(--ctr-bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
 .linkbtn {
   font-size: 12px;
   font-weight: 600;

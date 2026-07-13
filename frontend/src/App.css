@@ -198,6 +198,15 @@
   background: var(--accent-soft);
 }
 
+.bigbtn.ghost.warn {
+  color: var(--ctr-tx);
+  border-color: var(--ctr-tx);
+}
+
+.bigbtn.ghost.warn:active {
+  background: var(--ctr-bg);
+}
+
 /* Animations */
 @keyframes fadeIn {
   from {
