@@ -76,7 +76,14 @@ app.get('/api/board', async (c) => {
 // --- jobs picker ---
 app.get('/api/jobs', async (c) => {
   try {
-    const jobs = await c.get('store').getJobs(c.req.query('query'), c.req.query('area'));
+    const limit = c.req.query('limit');
+    const offset = c.req.query('offset');
+    const jobs = await c.get('store').getJobs(
+      c.req.query('query'),
+      c.req.query('area'),
+      limit ? Number(limit) : undefined,
+      offset ? Number(offset) : undefined
+    );
     return c.json({ jobs });
   } catch (e) { return fail(c, e); }
 });

@@ -57,7 +57,7 @@ const CFG = {
     tech: 'Technician__c',
     start: 'Start_Time__c',
     workDate: 'Work_Date__c',
-    end: null as string | null,   // set to 'End_Time__c' if the object has one
+    end: 'End_Time__c' as string | null,
   },
 
   // Schedule_Request__c
@@ -93,6 +93,10 @@ interface Env {
   // become a real Job_Assignment__c (not just a Schedule_Request__c) like
   // any other approved request. Same hidden-from-picker treatment.
   TIME_OFF_OPPORTUNITY_ID?: string;
+  // crs-dispatch service binding: the canonical assignment-creation path
+  // (createAssignment), which also handles the Field Squared push. Absent
+  // under dev-node (see dev-node.ts's DISPATCH_URL fallback for local dev).
+  DISPATCH?: { fetch(req: Request): Promise<Response> };
 }
 
 // Sentinel the frontend sends as job_id for the "New WO Required" pick.
@@ -263,7 +267,7 @@ export class SalesforceStore implements Store {
     }
   }
 
-  async getJobs(query?: string, area?: string): Promise<JobRow[]> {
+  async getJobs(query?: string, area?: string, limit = 200, offset = 0): Promise<JobRow[]> {
     const o = CFG.opp;
     const where: string[] = [
       `${o.statusField} IN (${o.openStatuses.map(s => `'${esc(s)}'`).join(',')})`,
@@ -286,7 +290,7 @@ export class SalesforceStore implements Store {
     const orderBy = o.dueDate ? `${o.dueDate} ASC NULLS LAST` : `${o.number} ASC`;
     const soql =
       `SELECT ${fields.join(', ')} FROM Opportunity ` +
-      `WHERE ${where.join(' AND ')} ORDER BY ${orderBy} LIMIT 200`;
+      `WHERE ${where.join(' AND ')} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
     const rows = await this.sf.query<any>(soql);
     const soon = Date.now() + 30 * 86_400_000;
     return rows.map(r => {
@@ -340,19 +344,21 @@ export class SalesforceStore implements Store {
       ` FROM ${a.sobject} WHERE ${a.workDate} = ${date}`
     );
     for (const r of assignments) {
+      const isTimeOff = r[a.opp] === this.env.TIME_OFF_OPPORTUNITY_ID;
       const rel = r[a.opp.replace('__c', '__r')];
       const start = sfTimeToPoint(r[a.start]);
       const end: TimePoint = a.end && r[a.end]
         ? sfTimeToPoint(r[a.end])
         : { hour: Math.min(start.hour + 2, 20), minute: start.minute }; // no end field: render 2h block
       slots.push({
-        id: r.Id, type: 'scheduled',
-        jobId: r[a.opp],
-        jobName: rel ? rel.Name : r[a.opp],
-        customerName: rel?.Account?.Name, ...detailOf(rel),
+        id: r.Id, type: isTimeOff ? 'time-off' : 'scheduled',
+        jobId: isTimeOff ? undefined : r[a.opp],
+        jobName: isTimeOff ? 'Time off' : rel ? rel.Name : r[a.opp],
+        customerName: isTimeOff ? undefined : rel?.Account?.Name,
+        ...(isTimeOff ? {} : detailOf(rel)),
         techId: r[a.tech],
         startTime: start, endTime: end,
-        status: 'Scheduled',
+        status: isTimeOff ? 'Off' : 'Scheduled',
       });
     }
 
@@ -366,15 +372,20 @@ export class SalesforceStore implements Store {
       `AND Status__c IN ('Requested','Countered')`
     );
     for (const r of requests) {
+      const isTimeOff = r.Type__c === 'Time off';
       const rel = r[rq.job.replace('__c', '__r')];
       slots.push({
         id: r.Id,
-        type: r.Type__c === 'Time off' ? 'time-off'
+        type: isTimeOff ? 'time-off'
             : r.Status__c === 'Countered' ? 'countered' : 'pending',
-        jobId: r[rq.job] ?? undefined,
-        jobName: r.Type__c === 'Time off' ? 'Time off'
-               : rel ? rel.Name : '',
-        customerName: rel?.Account?.Name, ...(rel ? detailOf(rel) : {}),
+        // Job__c now points at the time-off placeholder Opportunity from
+        // the moment the request is written (so the office can see it
+        // pre-approval too), but that placeholder's own account/scope/
+        // address are irrelevant here -- a time-off slot isn't "at" a job.
+        jobId: isTimeOff ? undefined : r[rq.job] ?? undefined,
+        jobName: isTimeOff ? 'Time off' : rel ? rel.Name : '',
+        customerName: isTimeOff ? undefined : rel?.Account?.Name,
+        ...(isTimeOff || !rel ? {} : detailOf(rel)),
         techId: r[rq.tech],
         startTime: sfTimeToPoint(r.Proposed_Start__c),
         endTime: sfTimeToPoint(r.Proposed_End__c),
@@ -383,21 +394,11 @@ export class SalesforceStore implements Store {
       });
     }
 
-    // Approved time off renders as blocked slots too.
-    const timeOff = await this.sf.query<any>(
-      `SELECT Id, ${rq.tech}, Proposed_Start__c, Proposed_End__c ` +
-      `FROM ${rq.sobject} WHERE Proposed_Date__c = ${date} ` +
-      `AND Type__c = 'Time off' AND Status__c = 'Approved'`
-    );
-    for (const r of timeOff) {
-      slots.push({
-        id: r.Id, type: 'time-off', jobName: 'Time off (approved)',
-        techId: r[rq.tech],
-        startTime: sfTimeToPoint(r.Proposed_Start__c),
-        endTime: sfTimeToPoint(r.Proposed_End__c),
-        status: 'Off',
-      });
-    }
+    // Approved time off no longer needs a separate query: acceptOffer now
+    // creates a real Job_Assignment__c on the TIME_OFF_OPPORTUNITY_ID
+    // sentinel (same as any other approved request), which the assignments
+    // query above already picks up and types correctly. Querying approved
+    // Schedule_Request__c rows here too would double-count the same day.
 
     // Countered banner: oldest countered request waiting on this tech.
     const countered = await this.sf.query<any>(
@@ -445,10 +446,21 @@ export class SalesforceStore implements Store {
     const rq = CFG.request;
     const rows = await this.sf.query<any>(
       `SELECT Id, Type__c, ${rq.job.replace('__c', '__r')}.Name, ${rq.tech}, ${rq.requestedBy}, ` +
-      `CreatedDate, Proposed_Date__c, Proposed_Start__c, Proposed_End__c, Status__c, Last_Offer_By__c, Note__c ` +
+      `CreatedDate, Proposed_Date__c, Proposed_Start__c, Proposed_End__c, Status__c, Last_Offer_By__c, ` +
+      `Note__c, Office_Note__c, Resolved_At__c ` +
       `FROM ${rq.sobject} WHERE ${rq.tech} = '${esc(techId)}' ` +
+      `AND (` +
+      `Status__c IN ('Requested', 'Countered') ` +
+      `OR (Status__c = 'Approved' AND Proposed_Date__c >= LAST_N_DAYS:7) ` +
+      `OR (Status__c IN ('Denied', 'Withdrawn') AND Resolved_At__c >= LAST_N_DAYS:7)` +
+      `) ` +
       `ORDER BY CreatedDate DESC LIMIT 100`
     );
+    // Expired is not a stored status -- a row is expired when it's still
+    // Requested/Countered but its proposed date has passed. That's already
+    // covered by the open-status clause above; the frontend derives the
+    // "Expired" label itself from Proposed_Date__c, so it must stay visible
+    // here rather than being filtered out server-side.
     return rows.map(r => ({
       Id: r.Id,
       Type__c: r.Type__c,
@@ -462,6 +474,8 @@ export class SalesforceStore implements Store {
       Status__c: r.Status__c,
       Last_Offer_By__c: r.Last_Offer_By__c,
       Note__c: r.Note__c ?? undefined,
+      Office_Note__c: r.Office_Note__c ?? undefined,
+      Resolved_At__c: r.Resolved_At__c ?? undefined,
     }));
   }
 
@@ -493,10 +507,25 @@ export class SalesforceStore implements Store {
       this.oppName.set(jobId, NEW_WO_LABEL);
     }
 
+    // Time off: same placeholder-Opportunity treatment as New WO, but
+    // applied from the moment the request is written rather than only at
+    // approval. Job__c on the Schedule_Request__c itself now always points
+    // at TIME_OFF_OPPORTUNITY_ID, not just the resulting Job_Assignment__c
+    // -- so the office can see it's a time-off request against that
+    // Opportunity even before it's approved, not just after.
+    if (input.type === 'Time off') {
+      if (!this.env.TIME_OFF_OPPORTUNITY_ID) {
+        throw httpError('Time off placeholder is not configured (TIME_OFF_OPPORTUNITY_ID)', 500);
+      }
+      jobId = this.env.TIME_OFF_OPPORTUNITY_ID;
+      this.oppName.set(jobId, 'Time off');
+    }
+
     if (input.type === 'Job' && !jobId) {
       throw httpError('Job requests require a job', 400);
     }
 
+    
     const body: Record<string, unknown> = {
       Name: `${input.techId} - ${input.date}`,
       Type__c: input.type,
@@ -548,12 +577,13 @@ export class SalesforceStore implements Store {
       Proposed_End__c: sfTimeToLabel(r.Proposed_End__c),
       Status__c: r.Status__c, Last_Offer_By__c: r.Last_Offer_By__c,
       Note__c: r.Note__c ?? undefined,
+      Office_Note__c: r.Office_Note__c ?? undefined,
+      Resolved_At__c: r.Resolved_At__c ?? undefined,
     };
   }
 
   async acceptOffer(id: string, actor: 'Tech' | 'Office', actorTechName?: string): Promise<RequestRow> {
     const rq = CFG.request;
-    const a = CFG.assignment;
     const r = await this.fetchRequest(id);
 
     if (r.Status__c !== 'Requested' && r.Status__c !== 'Countered')
@@ -567,10 +597,17 @@ export class SalesforceStore implements Store {
 
     const patch: Record<string, unknown> = { Status__c: 'Approved' };
 
-    // Invariant 1: the assignment is born here, and only here. Job requests
-    // attach to their own Opportunity; Time off attaches to the fixed
-    // placeholder Opportunity so it still becomes a real Job_Assignment__c
-    // (blocks the day on the board) rather than a request with no footprint.
+    // Invariant 1: the assignment is born here, and only here -- via the
+    // crs-dispatch service binding, which is the SAME assignment-creation
+    // path (createAssignment) normal dispatch uses, so the Field Squared
+    // push actually happens. A direct Job_Assignment__c insert bypasses
+    // that push entirely and gets silently deleted on dispatch's next FS
+    // reconcile tick. Job requests attach to their own Opportunity; time
+    // off attaches to the fixed placeholder Opportunity so it still becomes
+    // a real assignment (blocks the day on the board) rather than a request
+    // with no footprint. createAssignment's own sentinel guard nulls
+    // status/scheduledDate when the Opportunity is the time-off placeholder,
+    // so status: 'Scheduled' is safe to send unconditionally here.
     const assignmentOpp = r.Type__c === 'Job' ? r[rq.job]
       : r.Type__c === 'Time off' ? this.env.TIME_OFF_OPPORTUNITY_ID
       : undefined;
@@ -578,14 +615,25 @@ export class SalesforceStore implements Store {
       throw httpError('Time off placeholder is not configured (TIME_OFF_OPPORTUNITY_ID)', 500);
     }
     if (assignmentOpp) {
-      const body: Record<string, unknown> = {
-        [a.opp]: assignmentOpp,
-        [a.tech]: r[rq.tech],
-        [a.start]: r.Proposed_Start__c,
-        [a.workDate]: r.Proposed_Date__c,
-      };
-      if (a.end) body[a.end] = r.Proposed_End__c;
-      const assignmentId = await this.sf.insert(a.sobject, body);
+      if (!this.env.DISPATCH) throw httpError('DISPATCH service binding is not configured', 500);
+      const dispatchRes = await this.env.DISPATCH.fetch(new Request(
+        `https://dispatch/api/jobs/${assignmentOpp}/assignments`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            technicianId: r[rq.tech],
+            workDate: r.Proposed_Date__c,
+            startTime: r.Proposed_Start__c.slice(0, 5), // 'HH:mm:ss.000Z' -> 'HH:mm'
+            status: 'Scheduled',
+            deriveScheduledDate: true,
+          }),
+        }
+      ));
+      if (!dispatchRes.ok) {
+        throw httpError(`Assignment creation failed: ${dispatchRes.status} ${await dispatchRes.text()}`, 502);
+      }
+      const { assignmentId } = await dispatchRes.json() as { assignmentId: string };
       patch.Resulting_Assignment__c = assignmentId;
     }
 
@@ -627,7 +675,8 @@ export class SalesforceStore implements Store {
     if (r[rq.tech] !== techId) throw httpError('Not your request', 403);
     if (r.Status__c !== 'Requested' && r.Status__c !== 'Countered')
       throw httpError(`Cannot withdraw a ${r.Status__c} request`, 409);
-    await this.sf.update(rq.sobject, r.Id, { Status__c: 'Withdrawn' });
-    return this.toRow({ ...r, Status__c: 'Withdrawn' });
+    const resolvedAt = new Date().toISOString();
+    await this.sf.update(rq.sobject, r.Id, { Status__c: 'Withdrawn', Resolved_At__c: resolvedAt });
+    return this.toRow({ ...r, Status__c: 'Withdrawn', Resolved_At__c: resolvedAt });
   }
 }

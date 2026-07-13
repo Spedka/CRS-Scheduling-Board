@@ -11,8 +11,13 @@ directory = "../frontend/dist"
 
 [vars]
 APP_URL = "https://chalkboard.crsbas.workers.dev"
+# Not secret: these are Salesforce record Ids, already visible in plain SOQL
+# text and needing to match the same value crs-dispatch's own wrangler.toml
+# uses. Previously set as Worker secrets; moved here to match that
+# convention (see TODO Chalkboard Worker.md task 1).
+NEW_WO_OPPORTUNITY_ID = "006Uh00000v5szqIAA"
+TIME_OFF_OPPORTUNITY_ID = "006Uh00000v6XJpIAM"
 
-# When the crs-dispatch service binding lands, add:
-# [[services]]
-# binding = "DISPATCH"
-# service = "crs-dispatch"
+[[services]]
+binding = "DISPATCH"
+service = "crs-dispatch"

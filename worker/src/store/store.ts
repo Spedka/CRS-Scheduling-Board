@@ -57,9 +57,11 @@ export interface RequestRow {
   Proposed_Date__c: string;
   Proposed_Start__c: string; // "8:00"
   Proposed_End__c: string;
-  Status__c: 'Requested' | 'Countered' | 'Approved' | 'Expired' | 'Withdrawn';
+  Status__c: 'Requested' | 'Countered' | 'Approved' | 'Expired' | 'Withdrawn' | 'Denied';
   Last_Offer_By__c: 'Tech' | 'Office';
   Note__c?: string;
+  Office_Note__c?: string;
+  Resolved_At__c?: string;
 }
 
 export interface CreateRequestInput {
@@ -78,7 +80,10 @@ export interface CreateRequestInput {
 export interface Store {
   verifyTech(name: string): Promise<boolean>;
   getBoard(date: string, techId: string, view: 'me' | 'crew'): Promise<BoardResponse>;
-  getJobs(query?: string, area?: string): Promise<JobRow[]>;
+  // limit/offset are optional so existing callers (the composer's own job
+  // picker) that just want one reasonable batch keep working unchanged;
+  // JobsScreen's infinite scroll is the only caller that pages through them.
+  getJobs(query?: string, area?: string, limit?: number, offset?: number): Promise<JobRow[]>;
   getMyRequests(techId: string): Promise<RequestRow[]>;
   createRequest(input: CreateRequestInput): Promise<RequestRow>;
   acceptOffer(requestId: string, actor: 'Tech' | 'Office', actorTechId?: string): Promise<RequestRow>;
@@ -182,15 +187,20 @@ export class MockStore implements Store {
     const slots: BoardSlot[] = [];
 
     for (const a of this.assignments.filter(a => a.date === date)) {
+      const isTimeOff = a.jobId === this.timeOffJob.Id;
       const job = this.jobById(a.jobId);
       slots.push({
-        id: a.id, type: 'scheduled', jobId: a.jobId,
-        jobName: job ? job.Name : a.jobId,
-        customerName: job?.Customer_Name__c, scope: job?.Scope__c,
-        city: job?.City__c, address: job?.Address, dueDate: job?.Due_Date__c,
+        id: a.id, type: isTimeOff ? 'time-off' : 'scheduled',
+        jobId: isTimeOff ? undefined : a.jobId,
+        jobName: isTimeOff ? 'Time off' : job ? job.Name : a.jobId,
+        customerName: isTimeOff ? undefined : job?.Customer_Name__c,
+        scope: isTimeOff ? undefined : job?.Scope__c,
+        city: isTimeOff ? undefined : job?.City__c,
+        address: isTimeOff ? undefined : job?.Address,
+        dueDate: isTimeOff ? undefined : job?.Due_Date__c,
         techId: a.techId, techName: this.nameOf(a.techId),
         startTime: toPoint(a.start), endTime: toPoint(a.end),
-        status: 'Scheduled',
+        status: isTimeOff ? 'Off' : 'Scheduled',
       });
     }
 
@@ -198,16 +208,23 @@ export class MockStore implements Store {
       if (r.Proposed_Date__c !== date) continue;
       if (r.Status__c === 'Withdrawn' || r.Status__c === 'Expired') continue;
       if (r.Status__c === 'Approved') continue; // approved = the resulting assignment covers it now, for both types
+      const isTimeOff = r.Type__c === 'Time off';
       const job = this.jobById(r.JobId);
       slots.push({
         id: r.Id,
-        type: r.Type__c === 'Time off' ? 'time-off'
+        type: isTimeOff ? 'time-off'
             : r.Status__c === 'Countered' ? 'countered' : 'pending',
-        jobId: r.JobId,
-        jobName: r.Type__c === 'Time off' ? 'Time off'
-               : job ? job.Name : r.Job__c ?? '',
-        customerName: job?.Customer_Name__c, scope: job?.Scope__c,
-        city: job?.City__c, address: job?.Address, dueDate: job?.Due_Date__c,
+        // JobId now points at the time-off placeholder from request
+        // creation (so the office can see it pre-approval too), but the
+        // frontend-facing slot keeps jobId undefined for time off so it
+        // doesn't render a "Request" action against the placeholder itself.
+        jobId: isTimeOff ? undefined : r.JobId,
+        jobName: isTimeOff ? 'Time off' : job ? job.Name : r.Job__c ?? '',
+        customerName: isTimeOff ? undefined : job?.Customer_Name__c,
+        scope: isTimeOff ? undefined : job?.Scope__c,
+        city: isTimeOff ? undefined : job?.City__c,
+        address: isTimeOff ? undefined : job?.Address,
+        dueDate: isTimeOff ? undefined : job?.Due_Date__c,
         techId: r.Tech__c, techName: this.nameOf(r.Tech__c),
         startTime: toPoint(r.Proposed_Start__c), endTime: toPoint(r.Proposed_End__c),
         note: r.Note__c,
@@ -232,24 +249,36 @@ export class MockStore implements Store {
     };
   }
 
-  async getJobs(query?: string, area?: string): Promise<JobRow[]> {
+  async getJobs(query?: string, area?: string, limit?: number, offset = 0): Promise<JobRow[]> {
     const q = query?.toLowerCase();
     const soon = Date.now() + 30 * 86_400_000;
-    return this.jobs
+    const matched = this.jobs
       .filter(j => !area || j.City__c === area)
       .filter(j => !q || j.Name.toLowerCase().includes(q)
         || j.Customer_Name__c.toLowerCase().includes(q)
         || j.City__c.toLowerCase().includes(q)
         || j.Address.toLowerCase().includes(q))
-      .sort((a, b) => a.Due_Date__c.localeCompare(b.Due_Date__c))
-      .map(({ status: _s, ...j }) => ({
-        ...j, due_soon: new Date(j.Due_Date__c).getTime() < soon,
-      }));
+      .sort((a, b) => a.Due_Date__c.localeCompare(b.Due_Date__c));
+    const page = limit != null ? matched.slice(offset, offset + limit) : matched;
+    return page.map(({ status: _s, ...j }) => ({
+      ...j, due_soon: new Date(j.Due_Date__c).getTime() < soon,
+    }));
   }
 
   async getMyRequests(techId: string): Promise<RequestRow[]> {
+    const withinLast7Days = (iso?: string) =>
+      !!iso && Date.now() - new Date(iso).getTime() <= 7 * 86_400_000;
     return this.requests
       .filter(r => r.Tech__c === techId)
+      // Mirrors the 7-day window SalesforceStore applies in SOQL. Expired
+      // is not a stored status -- a still-open (Requested/Countered) row
+      // with a past Proposed_Date__c stays visible here; the frontend
+      // derives the "Expired" label itself from that date.
+      .filter(r =>
+        r.Status__c === 'Requested' || r.Status__c === 'Countered' ||
+        (r.Status__c === 'Approved' && r.Proposed_Date__c >= isoDaysFromNow(-7)) ||
+        ((r.Status__c === 'Denied' || r.Status__c === 'Withdrawn') && withinLast7Days(r.Resolved_At__c))
+      )
       .sort((a, b) => b.CreatedDate.localeCompare(a.CreatedDate))
       .map(({ JobId: _j, ...r }) => r);
   }
@@ -268,6 +297,11 @@ export class MockStore implements Store {
         throw Object.assign(new Error('A note is required for a new WO request'), { status: 400 });
       }
       jobId = this.newWoJob.Id;
+    }
+    // Time off: same placeholder treatment as New WO, applied from request
+    // creation rather than only at approval -- mirrors SalesforceStore.
+    if (input.type === 'Time off') {
+      jobId = this.timeOffJob.Id;
     }
 
     // Invariant 4: job requests carry a real job record from birth.
@@ -322,12 +356,14 @@ export class MockStore implements Store {
       : r.Type__c === 'Time off' ? this.timeOffJob.Id
       : undefined;
     if (assignmentJobId) {
+      // MockStore only: SalesforceStore routes this through the DISPATCH
+      // service binding instead (crs-dispatch's createAssignment, which
+      // also handles the Field Squared push) -- there's no such binding to
+      // call here, so the mock just inserts directly.
       this.assignments.push({
         id: nextId('a'), jobId: assignmentJobId, techId: r.Tech__c,
         date: r.Proposed_Date__c, start: r.Proposed_Start__c, end: r.Proposed_End__c,
       });
-      // Production: this calls the SAME assignment-creation path crs-dispatch
-      // uses, then stamps Resulting_Assignment__c on the request.
     }
     const { JobId: _j, ...clean } = r;
     return clean;
@@ -364,6 +400,7 @@ export class MockStore implements Store {
       throw Object.assign(new Error(`Cannot withdraw a ${r.Status__c} request`), { status: 409 });
     }
     r.Status__c = 'Withdrawn';
+    r.Resolved_At__c = new Date().toISOString();
     const { JobId: _j, ...clean } = r;
     return clean;
   }
