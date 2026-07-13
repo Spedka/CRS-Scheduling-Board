@@ -2,6 +2,14 @@
   padding-bottom: 24px;
 }
 
+/* Before a request type is picked, the sheet only has the Request Type
+   field in it -- fix its height so it doesn't read as a tiny sliver.
+   Once a type is picked, the Time off / Job / Service form fills it out
+   on its own, so let it size to that content instead. */
+.composer-sheet-picking-type {
+  min-height: 50vh;
+}
+
 .checkbox-field {
   display: flex;
   align-items: center;
@@ -40,6 +48,12 @@
   border-color: var(--accent);
 }
 
+.picker-trigger-open {
+  border-color: var(--accent);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .picker-trigger-text {
   flex: 1;
   min-width: 0;
@@ -55,6 +69,78 @@
 .picker-chevron {
   color: var(--muted);
   font-size: 12px;
+}
+
+/* Request-type dropdown: anchored directly under its trigger, unlike the
+   Job/Date fields' full sheet/card popups -- three short options don't
+   need a whole second surface, just a normal dropdown menu. */
+.type-dropdown-field {
+  position: relative;
+}
+
+.type-dropdown-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 104;
+}
+
+.type-dropdown {
+  /* Left/right match the trigger's own inset (the field's 18px horizontal
+     padding), and top cancels the field's 14px bottom padding -- so this
+     sits flush against the trigger's bottom edge, same width, no gap. */
+  position: absolute;
+  top: calc(100% - 14px);
+  left: 18px;
+  right: 18px;
+  z-index: 105;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  transform-origin: top center;
+  animation: dropDown 0.18s ease-out;
+}
+
+@keyframes dropDown {
+  from {
+    opacity: 0;
+    transform: scaleY(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.type-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.type-dropdown-item:first-child {
+  border-top: none;
+}
+
+.type-dropdown-item:active {
+  background: var(--accent-soft);
+}
+
+.type-dropdown-item.sel {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* Job picker popup: its own bottom sheet, layered above the composer sheet
@@ -177,6 +263,7 @@
   font-weight: 600;
   color: var(--ink);
 }
+
 
 .date-picker-header button {
   background: none;

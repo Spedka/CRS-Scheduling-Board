@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+// @ts-ignore
 import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
 // TypeScript may complain about side-effect CSS imports if no declaration is present.
 // Suppress the error for this import here.

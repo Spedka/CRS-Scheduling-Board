@@ -1,4 +1,6 @@
+// @ts-ignore
 import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
+// @ts-ignore
 import './JobDetailSheet.css';
 
 interface TimePoint {

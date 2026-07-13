@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '../api';
+// @ts-ignore
 import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
 // @ts-ignore: CSS side-effect import declaration not available in this project setup
 import './ComposerSheet.css';
@@ -10,6 +11,17 @@ const NEW_WO_SENTINEL = 'NEW_WO_REQUIRED';
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+// 'Job' and 'Service' are the same request under the hood (both submit as
+// type 'Job' against a picked Opportunity) -- they're offered as separate
+// picklist options purely so field techs aren't stuck guessing whether their
+// ask counts as a "job", not because the backend treats them differently.
+type RequestType = 'timeOff' | 'job' | 'service';
+const REQUEST_TYPE_OPTIONS: { value: RequestType; label: string }[] = [
+  { value: 'timeOff', label: 'Time off' },
+  { value: 'job', label: 'Job' },
+  { value: 'service', label: 'Service' },
+];
+
 const formatLocalDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -18,13 +30,19 @@ interface ComposerSheetProps {
   selectedDate: string;
   preselectedJob?: any;
   onCreated?: () => void;
-  // 'timeOff' opens straight into the time-off flow with no job field at
-  // all -- entered via its own button now, not a picker option.
+  // Set when the caller already knows the type -- picking a specific job
+  // from the Jobs tab or a board slot implies 'job' and skips the picklist
+  // below entirely. Left unset when opened from the generic "New Request"
+  // button, which shows the Request Type picklist first instead.
   mode?: 'job' | 'timeOff';
 }
 
-function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode = 'job' }: ComposerSheetProps) {
-  const isTimeOffMode = mode === 'timeOff';
+function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode }: ComposerSheetProps) {
+  const forcedType = mode !== undefined;
+  const [requestType, setRequestType] = useState<RequestType | null>(mode ?? null);
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
+  const isTimeOffMode = requestType === 'timeOff';
+  const hasType = requestType !== null;
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJob, setSelectedJob] = useState(preselectedJob?.Id ?? '');
   // Decoupled from `jobs`: the picker list is a server-filtered page (see
@@ -62,7 +80,7 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
   // typed. Querying the backend per keystroke instead means the search
   // covers the whole org, not just whatever the first page happened to be.
   useEffect(() => {
-    if (isTimeOffMode) return;
+    if (!hasType || isTimeOffMode) return;
     let cancelled = false;
 
     const fetchJobs = async () => {
@@ -82,7 +100,7 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
       cancelled = true;
       clearTimeout(debounce);
     };
-  }, [isTimeOffMode, jobSearch]);
+  }, [hasType, isTimeOffMode, jobSearch]);
 
   // autoFocus fires the instant the input mounts, which is mid-slide-up
   // (job-picker's own 0.3s animation) -- iOS calculates keyboard/viewport
@@ -109,7 +127,7 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
   // selected via the calendar, "next open gap" doesn't cleanly generalize --
   // it just uses a plain default (or "All day") instead.
   useEffect(() => {
-    if (timeManuallySet || isTimeOffMode) return;
+    if (!hasType || timeManuallySet || isTimeOffMode) return;
 
     const EARLIEST_START = 8 * 60; // 8am
     const LATEST_START = 14 * 60; // 2pm, so a 2h default always ends by 4pm
@@ -186,7 +204,7 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
     };
 
     fetchDefaultWindow();
-  }, [date, timeManuallySet, isTimeOffMode]);
+  }, [date, hasType, timeManuallySet, isTimeOffMode]);
 
   const isNewWoRequired = selectedJob === NEW_WO_SENTINEL;
   const pickerLabel = isNewWoRequired
@@ -194,9 +212,11 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
     : selectedJobDetails
       ? `${selectedJobDetails.Name} · ${selectedJobDetails.Customer_Name__c} · ${selectedJobDetails.Scope__c}`
       : 'No Job Selected';
-  const canSubmit = isTimeOffMode
-    ? selectedDates.length > 0
-    : !!selectedJob && (!isNewWoRequired || note.trim().length > 0);
+  const canSubmit = !hasType
+    ? false
+    : isTimeOffMode
+      ? selectedDates.length > 0
+      : !!selectedJob && (!isNewWoRequired || note.trim().length > 0);
 
   // Calendar grid for the selected month: null cells pad out to the first
   // weekday so days line up under the right column.
@@ -330,10 +350,49 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
   };
 
   return (
-    <div className="sheet composer-sheet" ref={composerSheetRef}>
+    <div className={`sheet composer-sheet ${!hasType ? 'composer-sheet-picking-type' : ''}`} ref={composerSheetRef}>
       <div className="grab" onTouchStart={composerTouchStart} onTouchMove={composerTouchMove} onTouchEnd={composerTouchEnd} />
       <h3>{isTimeOffMode ? 'Request time off' : 'New request'}</h3>
       <p className="sub">Sends a request to the office. Not on the schedule until approved.</p>
+
+      {!forcedType && (
+        <div className="field type-dropdown-field">
+          <label>Request Type</label>
+          <button
+            type="button"
+            className={`picker-trigger ${typePickerOpen ? 'picker-trigger-open' : ''}`}
+            onClick={() => setTypePickerOpen((open) => !open)}
+          >
+            <span className={`picker-trigger-text ${!requestType ? 'placeholder' : ''}`}>
+              {requestType ? REQUEST_TYPE_OPTIONS.find((o) => o.value === requestType)?.label : 'Select a request type'}
+            </span>
+            <span className="picker-chevron">▾</span>
+          </button>
+
+          {typePickerOpen && (
+            <>
+              <div className="type-dropdown-scrim" onClick={() => setTypePickerOpen(false)} />
+              <div className="type-dropdown">
+                {REQUEST_TYPE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`type-dropdown-item ${requestType === opt.value ? 'sel' : ''}`}
+                    onClick={() => {
+                      setRequestType(opt.value);
+                      setTypePickerOpen(false);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {hasType && (<>
 
       {!isTimeOffMode && (
         <div className="field">
@@ -492,6 +551,8 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
       <button className="bigbtn" onClick={handleSubmit} disabled={!canSubmit}>
         Send request
       </button>
+
+      </>)}
     </div>
   );
 }

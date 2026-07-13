@@ -1,6 +1,7 @@
 .timeline-board {
   display: flex;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   background: var(--bg);
 }

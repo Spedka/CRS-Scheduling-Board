@@ -23,7 +23,7 @@ function App() {
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   });
   const [composerJob, setComposerJob] = useState<any>(null);
-  const [composerMode, setComposerMode] = useState<'job' | 'timeOff'>('job');
+  const [composerMode, setComposerMode] = useState<'job' | 'timeOff' | undefined>(undefined);
   const [negotiationRequest, setNegotiationRequest] = useState<any>(null);
   const [selectedSlot, setSelectedSlot] = useState<any>(null);
   const [slotDetailDate, setSlotDetailDate] = useState<string | undefined>(undefined);
@@ -86,6 +86,7 @@ function App() {
   const closeSheet = () => {
     setActiveSheet(null);
     setComposerJob(null);
+    setComposerMode(undefined);
     setNegotiationRequest(null);
     setSelectedSlot(null);
     setSlotDetailDate(undefined);
@@ -128,11 +129,7 @@ function App() {
             onDateChange={setSelectedDate}
             refreshKey={refreshKey}
             onComposerOpen={() => {
-              setComposerMode('job');
-              setActiveSheet('composer');
-            }}
-            onTimeOffOpen={() => {
-              setComposerMode('timeOff');
+              setComposerMode(undefined);
               setActiveSheet('composer');
             }}
             onNegotiationOpen={(request) => {
