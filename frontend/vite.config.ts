@@ -17,7 +17,7 @@ export default defineConfig({
         name: 'CRS Tech Chalkboard',
         short_name: 'Chalkboard',
         start_url: '/',
-        display: 'standalone',
+        display: 'fullscreen',
         theme_color: '#...',
         background_color: '#...',
         icons: [

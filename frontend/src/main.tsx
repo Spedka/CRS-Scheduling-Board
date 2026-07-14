@@ -39,3 +39,38 @@ document.addEventListener('visibilitychange', () => {
     updateReady = false
   }
 })
+
+// TEMP DEBUG OVERLAY -- remove once the bottom-gap issue is diagnosed.
+function mountDebugOverlay() {
+  const box = document.createElement('div')
+  box.style.cssText =
+    'position:fixed;top:0;left:0;z-index:99999;background:rgba(0,0,0,0.85);color:#0f0;' +
+    'font:11px monospace;padding:6px 8px;white-space:pre;pointer-events:none;'
+  document.body.appendChild(box)
+
+  const probe = document.createElement('div')
+  probe.style.cssText = 'position:fixed;bottom:0;height:0;padding-bottom:env(safe-area-inset-bottom);'
+  document.body.appendChild(probe)
+
+  const update = () => {
+    const tabbar = document.querySelector('.tabbar')
+    const tabbarRect = tabbar?.getBoundingClientRect()
+    const dpr = window.devicePixelRatio || 1
+    const truePhysicalHeight = screen.height / dpr
+    const safeAreaBottom = getComputedStyle(probe).paddingBottom
+    box.textContent = [
+      `window.innerHeight: ${window.innerHeight}`,
+      `screen.height: ${screen.height}  dpr: ${dpr}`,
+      `true CSS px height: ${truePhysicalHeight.toFixed(1)}`,
+      `SHORTFALL (true - innerHeight): ${(truePhysicalHeight - window.innerHeight).toFixed(1)}`,
+      `.tabbar bottom: ${tabbarRect?.bottom}`,
+      `env(safe-area-inset-bottom): ${safeAreaBottom}`,
+    ].join('\n')
+  }
+
+  update()
+  window.addEventListener('resize', update)
+  ;(window as any).visualViewport?.addEventListener('resize', update)
+  setInterval(update, 500)
+}
+mountDebugOverlay()
