@@ -32,14 +32,10 @@
 }
 
 html, body, #root {
-  /* inset:0 instead of width/height:100% -- percentage height on a
-     position:fixed box doesn't reliably extend into the bottom safe area
-     on iOS standalone PWAs (confirmed: body's own background was showing
-     through below the tab bar even with viewport-fit=cover set). Pinning
-     all four edges directly to the true viewport bounds is unambiguous. */
-  position: fixed;
-  inset: 0;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
+  position: fixed;
   overscroll-behavior: none;
 }
 

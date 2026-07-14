@@ -3,7 +3,6 @@ import WeekStrip from '../components/WeekStrip';
 import TimelineBoard from '../components/TimelineBoard';
 import { api } from '../api';
 import { getTechName, initialsOf } from '../auth';
-// @ts-ignore: Side-effect import of CSS file without type declarations
 import './BoardScreen.css';
 
 interface BoardScreenProps {
@@ -11,11 +10,12 @@ interface BoardScreenProps {
   onDateChange: (date: string) => void;
   refreshKey?: number;
   onComposerOpen: () => void;
+  onTimeOffOpen: () => void;
   onNegotiationOpen: (request: any) => void;
   onSlotSelect: (slot: any) => void;
 }
 
-function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onNegotiationOpen, onSlotSelect }: BoardScreenProps) {
+function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onTimeOffOpen, onNegotiationOpen, onSlotSelect }: BoardScreenProps) {
   const [view, setView] = useState<'me' | 'crew'>('me');
   const [boardData, setBoardData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -55,10 +55,9 @@ function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onNegotia
               })}
             </div>
           </div>
+          <button className="timeoff-btn" onClick={onTimeOffOpen}>New Time Off Request</button>
+          <button className="plus-btn" onClick={onComposerOpen}>+</button>
           <div className="avatar">{initialsOf(getTechName())}</div>
-        </div>
-        <div className="action-row">
-          <button className="plus-btn" onClick={onComposerOpen}>New Request</button>
         </div>
       </div>
 
@@ -77,7 +76,7 @@ function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onNegotia
           className={`seg-btn ${view === 'crew' ? 'on' : ''}`}
           onClick={() => setView('crew')}
         >
-          All Techs
+          Crew
         </button>
       </div>
 

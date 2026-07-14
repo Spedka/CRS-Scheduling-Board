@@ -4,22 +4,10 @@
   width: 100%;
   height: 100%;
   background: var(--panel);
-  /* Installed standalone on iOS (apple-mobile-web-app-status-bar-style is
-     black-translucent), content draws full-bleed behind the status bar
-     instead of below it -- without this, the header sits partly under the
-     status bar. viewport-fit=cover (index.html) is what makes this env()
-     value resolve to a real inset instead of 0. Bottom inset is handled by
-     .tabbar itself instead of here -- see the note there. */
-  padding-top: env(safe-area-inset-top);
 }
 
 .screen-container {
   flex: 1;
-  /* Safari defaults nested flex items to min-height: auto (shrink-to-fit
-     content) instead of respecting flex:1 -- without this, a short screen
-     underneath (e.g. a light day on the board) leaves this shorter than
-     the space actually available instead of stretching to the tab bar. */
-  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -48,11 +36,8 @@
   display: flex;
   border-top: 1px solid var(--line);
   background: var(--panel);
+  height: 60px;
   min-height: 60px;
-  /* Extends the tab bar's own background down into the home-indicator
-     safe area, instead of leaving that gap to .app's background -- so
-     there's no seam even if the two ever end up painted differently. */
-  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .tab {
