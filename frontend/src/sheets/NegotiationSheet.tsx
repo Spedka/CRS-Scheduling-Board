@@ -22,6 +22,11 @@ interface NegotiationSheetProps {
   mode?: 'respond' | 'manage';
   onClose: () => void;
   onResolved: () => void;
+  // Fired synchronously the moment Accept is pressed, before the request
+  // resolves -- lets the caller flip its own local display (e.g. the
+  // requests list row) to "Approved" immediately instead of waiting on
+  // onResolved's real refetch to catch up.
+  onAccepted?: () => void;
 }
 
 const formatOffer = (date: string, start: string, end: string) =>
@@ -31,7 +36,7 @@ const formatOffer = (date: string, start: string, end: string) =>
     day: 'numeric',
   })}, ${start} to ${end}`;
 
-function NegotiationSheet({ request, mode = 'respond', onClose, onResolved }: NegotiationSheetProps) {
+function NegotiationSheet({ request, mode = 'respond', onClose, onResolved, onAccepted }: NegotiationSheetProps) {
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss<HTMLDivElement>(onClose);
   const [action, setAction] = useState<'accept' | 'counter' | null>(null);
   const [detail, setDetail] = useState<any>(null);
@@ -62,11 +67,15 @@ function NegotiationSheet({ request, mode = 'respond', onClose, onResolved }: Ne
   const handleAccept = () => {
     // Optimistic: assume it goes through rather than making the tech wait
     // on the round trip, and close right away so a second tap (impatient
-    // during the wait) can't fire a duplicate accept.
-    api(`/api/requests/${request.requestId}/accept`, { method: 'POST', body: JSON.stringify({}) })
-      .catch((err) => console.error('Failed to accept:', err));
-    onResolved();
+    // during the wait) can't fire a duplicate accept. onResolved (the
+    // refetch signal) has to wait for the response though -- firing it
+    // immediately just re-fetches the still-stale pre-accept state, and
+    // nothing would trigger a second refetch once the real response lands.
+    onAccepted?.();
     onClose();
+    api(`/api/requests/${request.requestId}/accept`, { method: 'POST', body: JSON.stringify({}) })
+      .then(() => onResolved())
+      .catch((err) => console.error('Failed to accept:', err));
   };
 
   const handleCounter = async () => {

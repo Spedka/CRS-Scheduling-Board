@@ -10,6 +10,11 @@ interface RequestsScreenProps {
   onComposerOpen: () => void;
   onTimeOffOpen: () => void;
   onNegotiationOpen: (request: { requestId: string; jobName: string; age: string }, mode?: 'respond' | 'manage') => void;
+  // Ids accepted optimistically (see App.tsx's onAccepted) -- the real
+  // accept is fire-and-forget from the negotiation sheet, so this is what
+  // makes the row flip to "Approved" immediately instead of waiting for
+  // the next server refetch to catch up.
+  optimisticApprovals?: Set<string>;
 }
 
 // Needs a reply or is still waiting on the office -- not yet resolved.
@@ -28,7 +33,7 @@ const ageOf = (iso: string): string => {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOpen, onNegotiationOpen }: RequestsScreenProps) {
+function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOpen, onNegotiationOpen, optimisticApprovals }: RequestsScreenProps) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,7 +42,6 @@ function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOp
       const res = await api('/api/requests?mine=1');
       const data = await res.json();
       setRequests(data.requests);
-      onCountChange?.(data.requests.filter((r: any) => isOpen(r.Status__c)).length);
     } catch (err) {
       console.error('Failed to fetch requests:', err);
     } finally {
@@ -48,6 +52,19 @@ function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOp
   useEffect(() => {
     fetchRequests();
   }, [refreshKey]);
+
+  // Merges in the optimistic override (if any) so the rest of a row --
+  // badge, label, which action buttons show -- just reads Status__c /
+  // Last_Offer_By__c normally without a special case.
+  const withOptimisticStatus = (req: any) =>
+    optimisticApprovals?.has(req.Id) ? { ...req, Status__c: 'Approved' as const } : req;
+
+  // Recomputed (not just done inline in fetchRequests) so an optimistic
+  // approval updates the tab badge immediately too, without waiting on the
+  // next real fetch.
+  useEffect(() => {
+    onCountChange?.(requests.filter((r) => isOpen(withOptimisticStatus(r).Status__c)).length);
+  }, [requests, optimisticApprovals]);
 
   // A "Countered" request is waiting on whichever side did NOT make the last
   // offer -- Last_Offer_By__c flips every counter (see store.ts's
@@ -108,7 +125,8 @@ function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOp
         {!loading && requests.length === 0 && (
           <div className="empty">No current requests</div>
         )}
-        {requests.map((req) => {
+        {requests.map((rawReq) => {
+          const req = withOptimisticStatus(rawReq);
           const jobName = req.Type__c === 'Time off' ? 'Time off' : req.Job__c ?? '';
           const isExpired = isOpen(req.Status__c) && req.Proposed_Date__c < today();
           return (

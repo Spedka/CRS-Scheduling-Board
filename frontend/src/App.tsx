@@ -27,6 +27,10 @@ function App() {
   const [composerMode, setComposerMode] = useState<'job' | 'timeOff'>('job');
   const [negotiationRequest, setNegotiationRequest] = useState<any>(null);
   const [negotiationMode, setNegotiationMode] = useState<'respond' | 'manage'>('respond');
+  // Ids accepted optimistically -- see NegotiationSheet's onAccepted and
+  // RequestsScreen's use of this to flip a row to "Approved" immediately,
+  // rather than waiting on the real accept request's own round trip.
+  const [optimisticApprovals, setOptimisticApprovals] = useState<Set<string>>(new Set());
   const [selectedSlot, setSelectedSlot] = useState<any>(null);
   const [slotDetailDate, setSlotDetailDate] = useState<string | undefined>(undefined);
   const [refreshKey, bumpRefresh] = useState(0);
@@ -193,6 +197,7 @@ function App() {
           <RequestsScreen
             refreshKey={refreshKey}
             onCountChange={setRequestCount}
+            optimisticApprovals={optimisticApprovals}
             onComposerOpen={() => {
               setComposerMode('job');
               setActiveSheet('composer');
@@ -234,6 +239,7 @@ function App() {
           mode={negotiationMode}
           onClose={closeSheet}
           onResolved={() => bumpRefresh((k) => k + 1)}
+          onAccepted={() => setOptimisticApprovals((prev) => new Set(prev).add(negotiationRequest.requestId))}
         />
       )}
       {activeSheet === 'jobDetail' && selectedSlot && (
