@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '../api';
 import './WeekStrip.css';
+
+const SWIPE_THRESHOLD = 50; // px dragged horizontally before it counts as a week nav
 
 interface WeekStripProps {
   selectedDate: string;
@@ -63,6 +65,44 @@ function WeekStrip({ selectedDate, onDateChange }: WeekStripProps) {
     onDateChange(formatLocalDate(d));
   };
 
+  // Swipe left/right to navigate weeks. Writes directly to the DOM node's
+  // style during the drag (not React state) so it tracks the finger every
+  // frame with no re-render lag, same approach as useSwipeToDismiss --
+  // not reusing that hook since it's hardcoded vertical/single-outcome and
+  // this is the only consumer of a horizontal two-outcome gesture.
+  const stripRef = useRef<HTMLDivElement>(null);
+  const startX = useRef(0);
+  const draggedX = useRef(0);
+  const dragging = useRef(false);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX;
+    draggedX.current = 0;
+    dragging.current = true;
+    const el = stripRef.current;
+    if (el) el.style.transition = 'none';
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!dragging.current) return;
+    const delta = e.touches[0].clientX - startX.current;
+    draggedX.current = delta;
+    const el = stripRef.current;
+    if (el) el.style.transform = `translateX(${delta}px)`;
+  };
+
+  const onTouchEnd = () => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    const el = stripRef.current;
+    if (el) {
+      el.style.transition = 'transform 0.2s ease-out';
+      el.style.transform = 'translateX(0)';
+    }
+    if (draggedX.current > SWIPE_THRESHOLD) shiftWeek(-7);
+    else if (draggedX.current < -SWIPE_THRESHOLD) shiftWeek(7);
+  };
+
   useEffect(() => {
     let cancelled = false;
     const weekEnd = days[6]?.dateStr;
@@ -97,7 +137,13 @@ function WeekStrip({ selectedDate, onDateChange }: WeekStripProps) {
       >
         ‹
       </button>
-      <div className="weekstrip">
+      <div
+        className="weekstrip"
+        ref={stripRef}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
         {days.map((day) => {
           const dayActivity = activity[day.dateStr];
           return (

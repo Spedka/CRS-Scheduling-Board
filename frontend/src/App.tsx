@@ -22,8 +22,14 @@ import './App.css';
 type Screen = 'board' | 'jobs' | 'requests';
 type Sheet = 'composer' | 'negotiation' | 'jobDetail' | null;
 
+const ACTIVE_SCREEN_KEY = 'chalkboard_active_screen';
+const isScreen = (v: string | null): v is Screen => v === 'board' || v === 'jobs' || v === 'requests';
+
 function App() {
-  const [activeScreen, setActiveScreen] = useState<Screen>('board');
+  const [activeScreen, setActiveScreen] = useState<Screen>(() => {
+    const stored = localStorage.getItem(ACTIVE_SCREEN_KEY);
+    return isScreen(stored) ? stored : 'board';
+  });
   const [activeSheet, setActiveSheet] = useState<Sheet>(null);
   const [selectedDate, setSelectedDate] = useState(() => {
     // Local date, not toISOString() -- that reports the UTC calendar date,
@@ -48,6 +54,10 @@ function App() {
   const [pastedLink, setPastedLink] = useState('');
   const [redeemError, setRedeemError] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem(ACTIVE_SCREEN_KEY, activeScreen);
+  }, [activeScreen]);
 
   useEffect(() => {
     redeemTokenFromUrl().then(() => {

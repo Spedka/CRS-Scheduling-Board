@@ -3,6 +3,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 // Suppress TS here for the side-effect CSS import.
 // @ts-ignore
 import './JobsScreen.css';
+// @ts-ignore
+import '../Skeleton.css';
 import { api } from '../api';
 import { getTechName, initialsOf } from '../auth';
 
@@ -21,10 +23,12 @@ function JobsScreen({ refreshKey, onSelect, onComposerOpen, onTimeOffOpen, onVie
   const [query, setQuery] = useState('');
   const [sort] = useState('due');
   const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const fetchPage = useCallback(async (offset: number, reset: boolean) => {
+    if (reset) setLoading(true);
     setLoadingMore(true);
     try {
       const params = new URLSearchParams();
@@ -41,6 +45,7 @@ function JobsScreen({ refreshKey, onSelect, onComposerOpen, onTimeOffOpen, onVie
       console.error('Failed to fetch jobs:', err);
     } finally {
       setLoadingMore(false);
+      if (reset) setLoading(false);
     }
   }, [query, sort]);
 
@@ -97,7 +102,16 @@ function JobsScreen({ refreshKey, onSelect, onComposerOpen, onTimeOffOpen, onVie
 
       {/* Jobs list */}
       <div className="jobs">
-        {jobs.map((job) => (
+        {loading && [0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="jobcard">
+            <div className="info">
+              <span className="skel-block" style={{ width: 70, height: 15, display: 'block', marginBottom: 6 }} />
+              <span className="skel-block" style={{ width: '80%', height: 12, display: 'block' }} />
+            </div>
+            <span className="skel-block" style={{ width: 70, height: 36, borderRadius: 10 }} />
+          </div>
+        ))}
+        {!loading && jobs.map((job) => (
           <div key={job.Id} className="jobcard">
             <div className="info" onClick={() => onViewDetail(job)}>
               <span className="t">

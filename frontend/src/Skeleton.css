@@ -1,0 +1,13 @@
+/* Shared shimmer placeholder, reused by Board/Requests/Jobs while their
+   first fetch is in flight. Collision-resistant name per this app's CSS-is-
+   not-scoped convention (see CLAUDE.md). */
+@keyframes skel-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.skel-block {
+  background: var(--line);
+  border-radius: 8px;
+  animation: skel-pulse 1.3s ease-in-out infinite;
+}

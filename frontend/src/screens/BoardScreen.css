@@ -162,3 +162,10 @@
   color: var(--muted);
   font-size: 14px;
 }
+
+.board-skeleton {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

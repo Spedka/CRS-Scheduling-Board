@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 // @ts-ignore
 import './RequestsScreen.css';
+// @ts-ignore
+import '../Skeleton.css';
 import { api } from '../api';
 import { getTechName, initialsOf } from '../auth';
 import { isOpen } from '../requestStatus';
@@ -120,6 +122,20 @@ function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOp
       </div>
 
       <div className="reqs">
+        {loading && [0, 1, 2].map((i) => (
+          <div key={i} className="reqcard">
+            <div className="top">
+              <span className="skel-block" style={{ width: 90, height: 14 }} />
+              <span className="skel-block" style={{ width: 50, height: 11 }} />
+            </div>
+            <div className="sub">
+              <span className="skel-block" style={{ width: '70%', height: 13, display: 'inline-block' }} />
+            </div>
+            <div className="foot">
+              <span className="skel-block" style={{ width: 76, height: 20, borderRadius: 6 }} />
+            </div>
+          </div>
+        ))}
         {!loading && requests.length === 0 && (
           <div className="empty">No current requests</div>
         )}

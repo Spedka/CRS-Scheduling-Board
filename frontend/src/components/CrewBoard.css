@@ -1,0 +1,146 @@
+.crew-board {
+  padding: 0 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  overflow-y: auto;
+}
+
+.crew-empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 48px 0;
+}
+
+.crew-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.crew-card-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.crew-tech-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.crew-summary {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.crew-time-range {
+  white-space: nowrap;
+}
+
+.crew-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.crew-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.crew-chevron {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+
+.crew-chevron.open {
+  transform: rotate(90deg);
+}
+
+.crew-card-body {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+
+.crew-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: none;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.crew-slot-row:last-child {
+  border-bottom: none;
+}
+
+.crew-slot-row.scheduled { border-left-color: var(--sched-bd); }
+.crew-slot-row.pending { border-left-color: var(--pend-bd); }
+.crew-slot-row.countered { border-left-color: var(--ctr-bd); }
+.crew-slot-row.time-off { border-left-color: var(--line-strong); }
+
+.crew-slot-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  flex-shrink: 0;
+  width: 42px;
+}
+
+.crew-slot-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.crew-slot-job {
+  font-size: 13px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-slot-note {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-slot-status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+  flex-shrink: 0;
+}

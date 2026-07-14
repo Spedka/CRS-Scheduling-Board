@@ -37,6 +37,11 @@ export function useSwipeToDismiss<T extends HTMLElement>(onClose: () => void) {
     if (!el) return;
     el.style.transition = 'transform 0.2s ease-out';
     if (draggedY.current > DISMISS_THRESHOLD) {
+      // No-op on iOS Safari/PWA (WebKit has never implemented the Vibration
+      // API) -- guarded so it's harmless there. Single choke point for every
+      // sheet that dismisses via swipe (Composer/Negotiation/JobDetail/job
+      // picker all share this hook).
+      if ('vibrate' in navigator) navigator.vibrate(10);
       el.style.transform = 'translateY(100%)';
       setTimeout(onClose, 200);
     } else {

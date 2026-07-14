@@ -29,6 +29,10 @@ interface NegotiationSheetProps {
   onAccepted?: () => void;
 }
 
+// No-op on iOS Safari/PWA -- WebKit has never implemented the Vibration API
+// -- guarded so it's harmless there and works wherever it is supported.
+const buzz = () => { if ('vibrate' in navigator) navigator.vibrate(10); };
+
 const formatOffer = (date: string, start: string, end: string) =>
   `${new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
     weekday: 'short',
@@ -71,6 +75,7 @@ function NegotiationSheet({ request, mode = 'respond', onClose, onResolved, onAc
     // refetch signal) has to wait for the response though -- firing it
     // immediately just re-fetches the still-stale pre-accept state, and
     // nothing would trigger a second refetch once the real response lands.
+    buzz();
     onAccepted?.();
     onClose();
     api(`/api/requests/${request.requestId}/accept`, { method: 'POST', body: JSON.stringify({}) })
@@ -88,6 +93,7 @@ function NegotiationSheet({ request, mode = 'respond', onClose, onResolved, onAc
         method: 'POST',
         body: JSON.stringify({ date: counterDate, start: counterStart, end: counterEnd }),
       });
+      buzz();
       onResolved();
       onClose();
     } catch (err) {
@@ -98,6 +104,7 @@ function NegotiationSheet({ request, mode = 'respond', onClose, onResolved, onAc
   const handleWithdraw = async () => {
     try {
       await api(`/api/requests/${request.requestId}/withdraw`, { method: 'POST' });
+      buzz();
       onResolved();
       onClose();
     } catch (err) {

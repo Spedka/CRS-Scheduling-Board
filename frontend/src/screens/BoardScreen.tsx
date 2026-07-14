@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import WeekStrip from '../components/WeekStrip';
 import TimelineBoard from '../components/TimelineBoard';
+import CrewBoard from '../components/CrewBoard';
 import { api } from '../api';
 import { getTechName, initialsOf } from '../auth';
 // @ts-ignore
 import './BoardScreen.css';
+// @ts-ignore
+import '../Skeleton.css';
 
 interface BoardScreenProps {
   date: string;
@@ -22,7 +25,6 @@ function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onTimeOff
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    console.log('[BoardScreen] fetch effect firing', { date, view, refreshKey });
     const fetchBoard = async () => {
       setLoading(true);
       try {
@@ -98,15 +100,25 @@ function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onTimeOff
 
       {/* Timeline board */}
       {boardData && !loading && (
-        <TimelineBoard
-          slots={boardData.slots}
-          view={view}
-          date={date}
-          onSlotSelect={onSlotSelect}
-        />
+        view === 'crew' ? (
+          <CrewBoard slots={boardData.slots} onSlotSelect={onSlotSelect} />
+        ) : (
+          <TimelineBoard
+            slots={boardData.slots}
+            view={view}
+            date={date}
+            onSlotSelect={onSlotSelect}
+          />
+        )
       )}
 
-      {loading && <div className="loading">Loading...</div>}
+      {loading && (
+        <div className="board-skeleton">
+          <div className="skel-block" style={{ height: 64 }} />
+          <div className="skel-block" style={{ height: 64 }} />
+          <div className="skel-block" style={{ height: 64 }} />
+        </div>
+      )}
     </div>
   );
 }
