@@ -3,6 +3,7 @@ import WeekStrip from '../components/WeekStrip';
 import TimelineBoard from '../components/TimelineBoard';
 import { api } from '../api';
 import { getTechName, initialsOf } from '../auth';
+// @ts-ignore
 import './BoardScreen.css';
 
 interface BoardScreenProps {

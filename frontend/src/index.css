@@ -41,7 +41,7 @@ html, body, #root {
 
 body {
   font-family: 'Barlow', sans-serif;
-  background: var(--bg);
+  background: var(--panel);
   color: var(--ink);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
