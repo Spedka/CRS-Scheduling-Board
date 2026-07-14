@@ -9,11 +9,7 @@ interface RequestsScreenProps {
   onCountChange?: (count: number) => void;
   onComposerOpen: () => void;
   onTimeOffOpen: () => void;
-  onNegotiationOpen: (request: { requestId: string; jobName: string; age: string }) => void;
-  // Bumps App's shared refresh signal so a withdraw initiated from here is
-  // also picked up by the board (and anything else keyed on it), not just
-  // this screen's own list.
-  onMutated?: () => void;
+  onNegotiationOpen: (request: { requestId: string; jobName: string; age: string }, mode?: 'respond' | 'manage') => void;
 }
 
 // Needs a reply or is still waiting on the office -- not yet resolved.
@@ -32,7 +28,7 @@ const ageOf = (iso: string): string => {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOpen, onNegotiationOpen, onMutated }: RequestsScreenProps) {
+function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOpen, onNegotiationOpen }: RequestsScreenProps) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,20 +49,17 @@ function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOp
     fetchRequests();
   }, [refreshKey]);
 
-  const handleWithdraw = async (id: string) => {
-    try {
-      await api(`/api/requests/${id}/withdraw`, { method: 'POST' });
-      fetchRequests();
-      onMutated?.();
-    } catch (err) {
-      console.error('Failed to withdraw request:', err);
-    }
-  };
+  // A "Countered" request is waiting on whichever side did NOT make the last
+  // offer -- Last_Offer_By__c flips every counter (see store.ts's
+  // counterOffer), so a tech-sent counter looks identical to an office-sent
+  // one unless this is checked. Getting this wrong shows a "Respond" button
+  // the backend would reject with "it is not your turn".
+  const isTechsTurn = (req: any) => req.Last_Offer_By__c === 'Office';
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
+  const getStatusBadgeClass = (req: any) => {
+    switch (req.Status__c) {
       case 'Countered':
-        return 'c';
+        return req.Last_Offer_By__c === 'Office' ? 'c' : 'p';
       case 'Requested':
         return 'p';
       case 'Approved':
@@ -80,20 +73,20 @@ function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOp
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
+  const getStatusLabel = (req: any) => {
+    switch (req.Status__c) {
       case 'Countered':
-        return 'Countered';
+        return req.Last_Offer_By__c === 'Office' ? 'Waiting on you' : 'Waiting on office';
       case 'Requested':
-        return 'Pending office';
+        return 'Waiting on office';
       case 'Approved':
-        return 'Approved, on schedule';
+        return 'Approved';
       case 'Withdrawn':
         return 'Withdrawn';
       case 'Denied':
         return 'Denied';
       default:
-        return status;
+        return req.Status__c;
     }
   };
 
@@ -145,20 +138,23 @@ function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOp
                 <p className="office-note">{req.Office_Note__c}</p>
               )}
               <div className="foot">
-                <span className={`st ${isExpired ? 'w' : getStatusBadgeClass(req.Status__c)}`}>
-                  {isExpired ? 'Expired' : getStatusLabel(req.Status__c)}
+                <span className={`st ${isExpired ? 'w' : getStatusBadgeClass(req)}`}>
+                  {isExpired ? 'Expired' : getStatusLabel(req)}
                 </span>
-                {req.Status__c === 'Countered' && !isExpired && (
+                {req.Status__c === 'Countered' && isTechsTurn(req) && !isExpired && (
                   <button
                     className="linkbtn"
-                    onClick={() => onNegotiationOpen({ requestId: req.Id, jobName, age: ageOf(req.CreatedDate) })}
+                    onClick={() => onNegotiationOpen({ requestId: req.Id, jobName, age: ageOf(req.CreatedDate) }, 'respond')}
                   >
                     Respond
                   </button>
                 )}
-                {req.Status__c === 'Requested' && !isExpired && (
-                  <button className="linkbtn warn" onClick={() => handleWithdraw(req.Id)}>
-                    Withdraw
+                {isOpen(req.Status__c) && !isTechsTurn(req) && !isExpired && (
+                  <button
+                    className="linkbtn"
+                    onClick={() => onNegotiationOpen({ requestId: req.Id, jobName, age: ageOf(req.CreatedDate) }, 'manage')}
+                  >
+                    Manage
                   </button>
                 )}
               </div>

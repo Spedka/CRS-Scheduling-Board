@@ -88,6 +88,10 @@ export interface Store {
   createRequest(input: CreateRequestInput): Promise<RequestRow>;
   acceptOffer(requestId: string, actor: 'Tech' | 'Office', actorTechId?: string): Promise<RequestRow>;
   counterOffer(requestId: string, actor: 'Tech' | 'Office', date: string, start: string, end: string, actorTechId?: string): Promise<RequestRow>;
+  // Edits a still-outstanding offer of your own (Last_Offer_By__c already
+  // you) in place -- unlike counterOffer, this doesn't flip whose turn it
+  // is, so it's only valid while the other side hasn't replied yet.
+  updateRequest(requestId: string, techId: string, date: string, start: string, end: string): Promise<RequestRow>;
   withdraw(requestId: string, techId: string): Promise<RequestRow>;
 }
 
@@ -387,6 +391,24 @@ export class MockStore implements Store {
     r.Proposed_End__c = end;
     r.Status__c = 'Countered';
     r.Last_Offer_By__c = actor;
+    const { JobId: _j, ...clean } = r;
+    return clean;
+  }
+
+  async updateRequest(id: string, techId: string, date: string, start: string, end: string): Promise<RequestRow> {
+    const r = this.mustGet(id);
+    if (r.Tech__c !== techId) {
+      throw Object.assign(new Error('Not your request'), { status: 403 });
+    }
+    if (r.Status__c !== 'Requested' && r.Status__c !== 'Countered') {
+      throw Object.assign(new Error(`Cannot update a ${r.Status__c} request`), { status: 409 });
+    }
+    if (r.Last_Offer_By__c !== 'Tech') {
+      throw Object.assign(new Error('The office has already countered; respond to their offer instead'), { status: 409 });
+    }
+    r.Proposed_Date__c = date;
+    r.Proposed_Start__c = start;
+    r.Proposed_End__c = end;
     const { JobId: _j, ...clean } = r;
     return clean;
   }

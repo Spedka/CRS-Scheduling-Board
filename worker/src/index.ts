@@ -169,6 +169,15 @@ app.post('/api/requests/:id/counter', async (c) => {
   } catch (e) { return fail(c, e); }
 });
 
+// Tech edits their own still-outstanding offer (nobody has replied since).
+app.post('/api/requests/:id/update', async (c) => {
+  try {
+    const b = await c.req.json();
+    const row = await c.get('store').updateRequest(c.req.param('id'), c.get('techId'), b.date, b.start, b.end);
+    return c.json({ request: row });
+  } catch (e) { return fail(c, e); }
+});
+
 app.post('/api/requests/:id/withdraw', async (c) => {
   try {
     const row = await c.get('store').withdraw(c.req.param('id'), c.get('techId'));

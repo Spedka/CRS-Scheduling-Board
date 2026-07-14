@@ -26,6 +26,7 @@ function App() {
   const [composerJob, setComposerJob] = useState<any>(null);
   const [composerMode, setComposerMode] = useState<'job' | 'timeOff'>('job');
   const [negotiationRequest, setNegotiationRequest] = useState<any>(null);
+  const [negotiationMode, setNegotiationMode] = useState<'respond' | 'manage'>('respond');
   const [selectedSlot, setSelectedSlot] = useState<any>(null);
   const [slotDetailDate, setSlotDetailDate] = useState<string | undefined>(undefined);
   const [refreshKey, bumpRefresh] = useState(0);
@@ -99,6 +100,7 @@ function App() {
     setActiveSheet(null);
     setComposerJob(null);
     setNegotiationRequest(null);
+    setNegotiationMode('respond');
     setSelectedSlot(null);
     setSlotDetailDate(undefined);
   };
@@ -191,7 +193,6 @@ function App() {
           <RequestsScreen
             refreshKey={refreshKey}
             onCountChange={setRequestCount}
-            onMutated={() => bumpRefresh((k) => k + 1)}
             onComposerOpen={() => {
               setComposerMode('job');
               setActiveSheet('composer');
@@ -200,8 +201,9 @@ function App() {
               setComposerMode('timeOff');
               setActiveSheet('composer');
             }}
-            onNegotiationOpen={(request) => {
+            onNegotiationOpen={(request, mode) => {
               setNegotiationRequest(request);
+              setNegotiationMode(mode ?? 'respond');
               setActiveSheet('negotiation');
             }}
           />
@@ -229,6 +231,7 @@ function App() {
       {activeSheet === 'negotiation' && negotiationRequest && (
         <NegotiationSheet
           request={negotiationRequest}
+          mode={negotiationMode}
           onClose={closeSheet}
           onResolved={() => bumpRefresh((k) => k + 1)}
         />

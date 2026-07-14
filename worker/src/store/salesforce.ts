@@ -668,6 +668,28 @@ export class SalesforceStore implements Store {
     });
   }
 
+  async updateRequest(id: string, techName: string, date: string, start: string, end: string): Promise<RequestRow> {
+    const rq = CFG.request;
+    const r = await this.fetchRequest(id);
+    const techId = await this.resolveTech(techName);
+
+    if (r[rq.tech] !== techId) throw httpError('Not your request', 403);
+    if (r.Status__c !== 'Requested' && r.Status__c !== 'Countered')
+      throw httpError(`Cannot update a ${r.Status__c} request`, 409);
+    if (r.Last_Offer_By__c !== 'Tech')
+      throw httpError('The office has already countered; respond to their offer instead', 409);
+
+    await this.sf.update(rq.sobject, r.Id, {
+      Proposed_Date__c: date,
+      Proposed_Start__c: labelToSfTime(start),
+      Proposed_End__c: labelToSfTime(end),
+    });
+    return this.toRow({
+      ...r, Proposed_Date__c: date,
+      Proposed_Start__c: labelToSfTime(start), Proposed_End__c: labelToSfTime(end),
+    });
+  }
+
   async withdraw(id: string, techName: string): Promise<RequestRow> {
     const rq = CFG.request;
     const r = await this.fetchRequest(id);

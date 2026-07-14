@@ -15,6 +15,11 @@ interface CounteredRequest {
 
 interface NegotiationSheetProps {
   request: CounteredRequest;
+  // 'respond': the office made the last offer, waiting on you -- can
+  // accept, counter, or cancel.
+  // 'manage': your own offer is still standing, waiting on the office --
+  // nothing of theirs to accept, so you can only update or cancel it.
+  mode?: 'respond' | 'manage';
   onClose: () => void;
   onResolved: () => void;
 }
@@ -26,7 +31,7 @@ const formatOffer = (date: string, start: string, end: string) =>
     day: 'numeric',
   })}, ${start} to ${end}`;
 
-function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProps) {
+function NegotiationSheet({ request, mode = 'respond', onClose, onResolved }: NegotiationSheetProps) {
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss<HTMLDivElement>(onClose);
   const [action, setAction] = useState<'accept' | 'counter' | null>(null);
   const [detail, setDetail] = useState<any>(null);
@@ -54,26 +59,30 @@ function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProp
     fetchDetail();
   }, [request.requestId]);
 
-  const handleAccept = async () => {
-    try {
-      await api(`/api/requests/${request.requestId}/accept`, { method: 'POST', body: JSON.stringify({}) });
-      onResolved();
-      onClose();
-    } catch (err) {
-      console.error('Failed to accept:', err);
-    }
+  const handleAccept = () => {
+    // Optimistic: assume it goes through rather than making the tech wait
+    // on the round trip, and close right away so a second tap (impatient
+    // during the wait) can't fire a duplicate accept.
+    api(`/api/requests/${request.requestId}/accept`, { method: 'POST', body: JSON.stringify({}) })
+      .catch((err) => console.error('Failed to accept:', err));
+    onResolved();
+    onClose();
   };
 
   const handleCounter = async () => {
+    // 'manage' edits your own still-standing offer in place (the office
+    // hasn't replied yet, so there's no turn to flip); 'respond' counters
+    // the office's offer, which does flip it.
+    const path = mode === 'manage' ? 'update' : 'counter';
     try {
-      await api(`/api/requests/${request.requestId}/counter`, {
+      await api(`/api/requests/${request.requestId}/${path}`, {
         method: 'POST',
         body: JSON.stringify({ date: counterDate, start: counterStart, end: counterEnd }),
       });
       onResolved();
       onClose();
     } catch (err) {
-      console.error('Failed to counter:', err);
+      console.error(`Failed to ${path}:`, err);
     }
   };
 
@@ -121,26 +130,28 @@ function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProp
 
       <div className="offers">
         <div className="offer">
-          <span className="k">Office countered</span>
+          <span className="k">{mode === 'manage' ? 'Your request' : 'Office countered'}</span>
           <span className="v hot">{officeCountered}</span>
         </div>
         <div className="offer" style={{ border: 'none' }}>
           <span className="k">Waiting on</span>
-          <span className="v">You, {request.age}</span>
+          <span className="v">{mode === 'manage' ? `Office, ${request.age}` : `You, ${request.age}`}</span>
         </div>
       </div>
 
       {action === null && (
         <>
-          <button className="bigbtn" onClick={handleAccept} disabled={!detail}>
-            Accept {detail ? formatOffer(detail.Proposed_Date__c, detail.Proposed_Start__c, detail.Proposed_End__c).split(', ')[0] : ''}
-          </button>
+          {mode === 'respond' && (
+            <button className="bigbtn" onClick={handleAccept} disabled={!detail}>
+              Accept {detail ? formatOffer(detail.Proposed_Date__c, detail.Proposed_Start__c, detail.Proposed_End__c).split(', ')[0] : ''}
+            </button>
+          )}
           <button
-            className="bigbtn ghost"
+            className={mode === 'manage' ? 'bigbtn' : 'bigbtn ghost'}
             onClick={() => setAction('counter')}
-            style={{ marginTop: '9px' }}
+            style={mode === 'respond' ? { marginTop: '9px' } : undefined}
           >
-            Offer another time
+            {mode === 'manage' ? 'Update time' : 'Offer another time'}
           </button>
           <button
             className="bigbtn ghost warn"
@@ -155,7 +166,7 @@ function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProp
       {action === 'counter' && (
         <>
           <div className="field">
-            <label>Your counter offer</label>
+            <label>{mode === 'manage' ? 'New time' : 'Your counter offer'}</label>
             <input
               type="date"
               value={counterDate}
@@ -180,7 +191,7 @@ function NegotiationSheet({ request, onClose, onResolved }: NegotiationSheetProp
           </div>
 
           <button className="bigbtn" onClick={handleCounter}>
-            Send counter
+            {mode === 'manage' ? 'Save changes' : 'Send counter'}
           </button>
           <button
             className="bigbtn ghost"
