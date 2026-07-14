@@ -7,6 +7,8 @@ import { getTechName, initialsOf } from '../auth';
 interface RequestsScreenProps {
   refreshKey?: number;
   onCountChange?: (count: number) => void;
+  onComposerOpen: () => void;
+  onTimeOffOpen: () => void;
   onNegotiationOpen: (request: { requestId: string; jobName: string; age: string }) => void;
   // Bumps App's shared refresh signal so a withdraw initiated from here is
   // also picked up by the board (and anything else keyed on it), not just
@@ -30,7 +32,7 @@ const ageOf = (iso: string): string => {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-function RequestsScreen({ refreshKey, onCountChange, onNegotiationOpen, onMutated }: RequestsScreenProps) {
+function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOpen, onNegotiationOpen, onMutated }: RequestsScreenProps) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -99,10 +101,12 @@ function RequestsScreen({ refreshKey, onCountChange, onNegotiationOpen, onMutate
     <div className="requests-screen">
       <div className="apphead">
         <div className="row1">
-          <div>
+          <div className="head-text">
             <h1>My requests</h1>
-            <div className="sub">Everything you have requested</div>
+            <div className="sub">Previous and current requests</div>
           </div>
+          <button className="timeoff-btn" onClick={onTimeOffOpen}>New Time Off Request</button>
+          <button className="plus-btn" onClick={onComposerOpen}>+</button>
           <div className="avatar">{initialsOf(getTechName())}</div>
         </div>
       </div>

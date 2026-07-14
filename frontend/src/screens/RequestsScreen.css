@@ -16,6 +16,11 @@
   gap: 10px;
 }
 
+.head-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .apphead h1 {
   font-size: 21px;
   font-weight: 600;
@@ -25,6 +30,45 @@
   font-size: 13px;
   color: var(--muted);
   margin-top: 2px;
+}
+
+.plus-btn {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.plus-btn:active {
+  background: #1b4e5a;
+}
+
+.timeoff-btn {
+  flex-shrink: 0;
+  width: 92px;
+  padding: 6px 10px;
+  min-height: 40px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  transition: background 0.2s;
+}
+
+.timeoff-btn:active {
+  background: var(--accent-soft);
 }
 
 .avatar {

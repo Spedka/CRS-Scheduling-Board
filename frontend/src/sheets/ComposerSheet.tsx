@@ -258,17 +258,37 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
 
   const handleTimeStep = (field: string, direction: number) => {
     setTimeManuallySet(true);
+    const MIN_TIME = 5 * 60;
+    const MAX_TIME = 20 * 60;
+    const STEP = 30;
+    const fmt = (mins: number) => `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}`;
+
     const time = field === 'start' ? startTime : endTime;
     const [h, m] = time.split(':').map(Number);
-    let minutes = h * 60 + m + direction * 30;
-    minutes = Math.max(5 * 60, Math.min(20 * 60, minutes));
-    const newH = Math.floor(minutes / 60);
-    const newM = minutes % 60;
-    const newTime = `${newH}:${String(newM).padStart(2, '0')}`;
+    const minutes = Math.max(MIN_TIME, Math.min(MAX_TIME, h * 60 + m + direction * STEP));
+
+    const [oh, om] = (field === 'start' ? endTime : startTime).split(':').map(Number);
+    let otherMinutes = oh * 60 + om;
+
+    // Start can never reach or pass end (and vice versa). Rather than just
+    // refusing the step, drag the other end of the window along so it
+    // keeps a minimum 30min gap -- e.g. pushing start up to/past end bumps
+    // end forward too instead of getting stuck.
+    if (field === 'start' && minutes >= otherMinutes) {
+      otherMinutes = Math.min(minutes + STEP, MAX_TIME);
+      if (otherMinutes <= minutes) return; // no room left to maintain a gap
+    }
+    if (field === 'end' && minutes <= otherMinutes) {
+      otherMinutes = Math.max(minutes - STEP, MIN_TIME);
+      if (otherMinutes >= minutes) return; // no room left to maintain a gap
+    }
+
     if (field === 'start') {
-      setStartTime(newTime);
+      setStartTime(fmt(minutes));
+      setEndTime(fmt(otherMinutes));
     } else {
-      setEndTime(newTime);
+      setEndTime(fmt(minutes));
+      setStartTime(fmt(otherMinutes));
     }
   };
 

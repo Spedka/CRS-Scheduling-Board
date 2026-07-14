@@ -152,6 +152,14 @@ function App() {
               setComposerJob(job);
               setActiveSheet('composer');
             }}
+            onComposerOpen={() => {
+              setComposerMode('job');
+              setActiveSheet('composer');
+            }}
+            onTimeOffOpen={() => {
+              setComposerMode('timeOff');
+              setActiveSheet('composer');
+            }}
             onViewDetail={(job) => {
               setSelectedSlot({
                 jobId: job.Id,
@@ -171,6 +179,14 @@ function App() {
             refreshKey={refreshKey}
             onCountChange={setRequestCount}
             onMutated={() => bumpRefresh((k) => k + 1)}
+            onComposerOpen={() => {
+              setComposerMode('job');
+              setActiveSheet('composer');
+            }}
+            onTimeOffOpen={() => {
+              setComposerMode('timeOff');
+              setActiveSheet('composer');
+            }}
             onNegotiationOpen={(request) => {
               setNegotiationRequest(request);
               setActiveSheet('negotiation');

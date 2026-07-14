@@ -8,12 +8,14 @@ import { getTechName, initialsOf } from '../auth';
 
 interface JobsScreenProps {
   onSelect: (job: any) => void;
+  onComposerOpen: () => void;
+  onTimeOffOpen: () => void;
   onViewDetail: (job: any) => void;
 }
 
 const PAGE_SIZE = 25;
 
-function JobsScreen({ onSelect, onViewDetail }: JobsScreenProps) {
+function JobsScreen({ onSelect, onComposerOpen, onTimeOffOpen, onViewDetail }: JobsScreenProps) {
   const [jobs, setJobs] = useState<any[]>([]);
   const [query, setQuery] = useState('');
   const [sort] = useState('due');
@@ -66,10 +68,12 @@ function JobsScreen({ onSelect, onViewDetail }: JobsScreenProps) {
     <div className="jobs-screen">
       <div className="apphead">
         <div className="row1">
-          <div>
+          <div className="head-text">
             <h1>Open jobs</h1>
             <div className="sub">Company backlog</div>
           </div>
+          <button className="timeoff-btn" onClick={onTimeOffOpen}>New Time Off Request</button>
+          <button className="plus-btn" onClick={onComposerOpen}>+</button>
           <div className="avatar">{initialsOf(getTechName())}</div>
         </div>
       </div>
