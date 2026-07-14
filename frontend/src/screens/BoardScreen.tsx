@@ -22,6 +22,7 @@ function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onTimeOff
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    console.log('[BoardScreen] fetch effect firing', { date, view, refreshKey });
     const fetchBoard = async () => {
       setLoading(true);
       try {

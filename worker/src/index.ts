@@ -7,6 +7,10 @@ import { MockStore, type Store } from './store/store';
 import { SalesforceStore } from './store/salesforce';
 import { createMagicLink, redeemMagicLink, resolveDeviceToken, signDeviceToken, getAuthSecret } from './auth';
 
+// Durable Object class must be exported from the Worker's main entry script
+// for the wrangler.toml binding to resolve it.
+export { TechChannel } from './techChannel';
+
 // Store selection: if SF secrets are configured, use Salesforce; otherwise
 // fall back to the in-memory mock so local dev works with zero setup.
 // One instance per isolate; the token cache lives inside it.
@@ -62,6 +66,39 @@ app.get('/auth/redeem', async (c) => {
   if (!result) return c.json({ error: 'Link is invalid or expired' }, 401);
   const deviceToken = await signDeviceToken(result.techName, getAuthSecret((c as any).env));
   return c.json({ deviceToken, techName: result.techName });
+});
+
+// --- live push: crs-dispatch notifies us, we push to the tech's socket ---
+// See CLAUDE.md's "Live push to the tech app" section. Both routes no-op
+// (501) when TECH_CHANNEL isn't bound -- true under dev:node, which has no
+// Durable Object runtime, same limitation as the DISPATCH binding.
+app.get('/ws', async (c) => {
+  const env = (c as any).env;
+  if (!env.TECH_CHANNEL) return c.text('Not available in this environment', 501);
+  const techName = await resolveDeviceToken(c.req.query('token') ?? '', getAuthSecret(env));
+  if (!techName) return c.text('Unauthorized', 401);
+  console.log('[ws connect]', JSON.stringify(techName));
+  const stub = env.TECH_CHANNEL.get(env.TECH_CHANNEL.idFromName(techName));
+  return stub.fetch(c.req.raw);
+});
+
+// Called by crs-dispatch's BOARD service binding, not by the frontend --
+// gated by a shared secret rather than the tech auth above since a service
+// binding's fetch() still lands on this same public-facing handler.
+app.post('/internal/notify', async (c) => {
+  const env = (c as any).env;
+  if (!env.TECH_CHANNEL) return c.text('Not available in this environment', 501);
+  if (c.req.header('X-Internal-Secret') !== env.INTERNAL_NOTIFY_SECRET) return c.text('Unauthorized', 401);
+  const { techName, reason } = await c.req.json();
+  if (!techName) return c.json({ error: 'techName required' }, 400);
+  const stub = env.TECH_CHANNEL.get(env.TECH_CHANNEL.idFromName(techName));
+  const res = await stub.fetch('https://internal/push', { method: 'POST', body: JSON.stringify({ reason }) });
+  const result = await res.json();
+  // JSON.stringify(techName) surfaces stray whitespace/casing that would
+  // otherwise silently route this to a different (unconnected) DO instance
+  // -- idFromName is an exact-string lookup.
+  console.log('[notify]', JSON.stringify(techName), reason, result);
+  return c.json(result);
 });
 
 // --- board ---

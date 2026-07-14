@@ -7,6 +7,7 @@ import NegotiationSheet from './sheets/NegotiationSheet.tsx';
 import JobDetailSheet from './sheets/JobDetailSheet.tsx';
 import { getDeviceToken, redeemTokenFromUrl, redeemTokenFromPastedInput } from './auth';
 import { api } from './api';
+import { connectLiveUpdates } from './ws';
 // @ts-ignore: CSS side-effect import without type declarations
 import './App.css';
 
@@ -69,6 +70,17 @@ function App() {
     };
     fetchCount();
   }, [authed, refreshKey]);
+
+  // Live push from crs-dispatch (see ws.ts) -- reuses the exact same
+  // refreshKey every screen already refetches on after its own local
+  // mutations, so a dispatch-side change updates whatever's on screen too.
+  useEffect(() => {
+    if (!authed) return;
+    return connectLiveUpdates(() => {
+      console.log('[App] live-push refresh, bumping refreshKey');
+      bumpRefresh((k) => k + 1);
+    });
+  }, [authed]);
 
   const handleRedeemPasted = async () => {
     setRedeemError(null);

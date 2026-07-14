@@ -60,6 +60,14 @@ export default defineConfig({
         target: apiTarget,
         changeOrigin: true,
       },
+      // Live-push WebSocket (see src/ws.ts) -- only reachable when the API
+      // is a real `wrangler dev` instance, not `dev:node`'s plain Node
+      // server, since Durable Objects need the Workers runtime.
+      '/ws': {
+        target: apiTarget,
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
 })

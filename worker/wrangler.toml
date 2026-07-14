@@ -21,3 +21,16 @@ TIME_OFF_OPPORTUNITY_ID = "006Uh00000v6XJpIAM"
 [[services]]
 binding = "DISPATCH"
 service = "crs-dispatch"
+
+# Holds a live WebSocket per tech so crs-dispatch can push a "refresh" the
+# moment it changes something that matters to them -- see CLAUDE.md's "Live
+# push to the tech app" section. Also requires an INTERNAL_NOTIFY_SECRET
+# secret (wrangler secret put INTERNAL_NOTIFY_SECRET) shared with
+# crs-dispatch's BOARD_NOTIFY_SECRET.
+[[durable_objects.bindings]]
+name = "TECH_CHANNEL"
+class_name = "TechChannel"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TechChannel"]
