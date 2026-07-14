@@ -111,67 +111,18 @@ function ComposerSheet({ onClose, selectedDate, preselectedJob, onCreated, mode 
   useEffect(() => {
     if (timeManuallySet || isTimeOffMode) return;
 
-    const EARLIEST_START = 8 * 60; // 8am
-    const LATEST_START = 14 * 60; // 2pm, so a 2h default always ends by 4pm
-    const SLOT_LENGTH = 120;
     const MAX_DAYS_AHEAD = 14;
-    const fmt = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-    const addDays = (dateStr: string, days: number) => {
-      const [y, m, d] = dateStr.split('-').map(Number);
-      const dt = new Date(y, m - 1, d);
-      dt.setDate(dt.getDate() + days);
-      return formatLocalDate(dt);
-    };
-
-    const mergeIntervals = (slots: any[]): [number, number][] => {
-      const merged: [number, number][] = [];
-      for (const s of [...slots].sort((a, b) => a.startTime.hour * 60 + a.startTime.minute - (b.startTime.hour * 60 + b.startTime.minute))) {
-        const start = s.startTime.hour * 60 + s.startTime.minute;
-        const end = s.endTime.hour * 60 + s.endTime.minute;
-        if (merged.length && start <= merged[merged.length - 1][1]) {
-          merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], end);
-        } else {
-          merged.push([start, end]);
-        }
-      }
-      return merged;
-    };
-
-    // Earliest valid start within a day given existing occupied intervals
-    // and a floor (8am, or "now" rounded up for today); null if nothing
-    // fits before LATEST_START.
-    const findGapInDay = (merged: [number, number][], floor: number): [number, number] | null => {
-      let cursor = Math.max(floor, EARLIEST_START);
-      for (const [start, end] of merged) {
-        if (cursor > LATEST_START) return null;
-        if (start - cursor >= SLOT_LENGTH) return [cursor, cursor + SLOT_LENGTH];
-        cursor = Math.max(cursor, end);
-      }
-      return cursor <= LATEST_START ? [cursor, cursor + SLOT_LENGTH] : null;
-    };
 
     const fetchDefaultWindow = async () => {
-      const now = new Date();
-      const todayStr = formatLocalDate(now);
-
       try {
-        for (let offset = 0; offset <= MAX_DAYS_AHEAD; offset++) {
-          const candidateDate = addDays(date, offset);
-          const res = await api(`/api/board?start=${candidateDate}&view=me`);
-          const data = await res.json();
-          const merged = mergeIntervals(data.slots ?? []);
-
-          const floor = candidateDate === todayStr
-            ? Math.ceil((now.getHours() * 60 + now.getMinutes()) / 30) * 30
-            : EARLIEST_START;
-
-          const found = findGapInDay(merged, floor);
-          if (found) {
-            if (candidateDate !== date) setDate(candidateDate);
-            setStartTime(fmt(found[0]));
-            setEndTime(fmt(found[1]));
-            return;
-          }
+        const res = await api(`/api/board/gap?from=${date}&maxDays=${MAX_DAYS_AHEAD}`);
+        const data = await res.json();
+        const gap: { date: string; start: string; end: string } | null = data.gap ?? null;
+        if (gap) {
+          if (gap.date !== date) setDate(gap.date);
+          setStartTime(gap.start);
+          setEndTime(gap.end);
+          return;
         }
 
         // Nothing open in the next two weeks -- leave the date alone and

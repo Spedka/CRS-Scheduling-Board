@@ -77,6 +77,11 @@ export interface CreateRequestInput {
 
 // ---------- store interface ----------
 
+// Per-day activity summary for WeekStrip's dots -- deliberately just 3
+// booleans, not full slot detail, so a week's worth costs one lean query
+// instead of 7 full-payload /api/board calls.
+export interface DayActivity { date: string; scheduled: boolean; pending: boolean; countered: boolean }
+
 export interface Store {
   verifyTech(name: string): Promise<boolean>;
   getBoard(date: string, techId: string, view: 'me' | 'crew'): Promise<BoardResponse>;
@@ -85,6 +90,7 @@ export interface Store {
   // JobsScreen's infinite scroll is the only caller that pages through them.
   getJobs(query?: string, area?: string, limit?: number, offset?: number): Promise<JobRow[]>;
   getMyRequests(techId: string): Promise<RequestRow[]>;
+  getRequest(requestId: string, techId: string): Promise<RequestRow>;
   createRequest(input: CreateRequestInput): Promise<RequestRow>;
   acceptOffer(requestId: string, actor: 'Tech' | 'Office', actorTechId?: string): Promise<RequestRow>;
   counterOffer(requestId: string, actor: 'Tech' | 'Office', date: string, start: string, end: string, actorTechId?: string): Promise<RequestRow>;
@@ -93,6 +99,12 @@ export interface Store {
   // is, so it's only valid while the other side hasn't replied yet.
   updateRequest(requestId: string, techId: string, date: string, start: string, end: string): Promise<RequestRow>;
   withdraw(requestId: string, techId: string): Promise<RequestRow>;
+  // WeekStrip's dots for [start, end] (inclusive), one lean call instead of
+  // 7 full /api/board fetches.
+  getWeekActivity(techId: string, start: string, end: string): Promise<DayActivity[]>;
+  // ComposerSheet's "next open 2h gap" default window, computed server-side
+  // over one range query instead of up to 15 sequential per-day fetches.
+  getNextOpenGap(techId: string, fromDate: string, maxDaysAhead: number): Promise<{ date: string; start: string; end: string } | null>;
 }
 
 // ---------- helpers ----------
@@ -112,6 +124,68 @@ const ageOf = (iso: string): string => {
 
 const isoDaysFromNow = (d: number) =>
   new Date(Date.now() + d * 86_400_000).toISOString().split('T')[0];
+
+// Local-time date math (not UTC -- see WeekStrip.tsx's identical concern
+// about new Date(str) parsing 'YYYY-MM-DD' as UTC midnight).
+export const addDaysIso = (dateStr: string, days: number): string => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+};
+
+// Shared by both stores' getNextOpenGap: pure date math, no Salesforce (or
+// mock-data) specifics, so it's written once instead of duplicated. Ported
+// unchanged from what used to be ComposerSheet.tsx's client-side loop.
+export function findNextGap(
+  occupiedByDate: Map<string, { startTime: TimePoint; endTime: TimePoint }[]>,
+  fromDate: string,
+  maxDaysAhead: number,
+  now: Date = new Date()
+): { date: string; start: string; end: string } | null {
+  const EARLIEST_START = 8 * 60;
+  const LATEST_START = 14 * 60;
+  const SLOT_LENGTH = 120;
+  const fmt = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const mergeIntervals = (slots: { startTime: TimePoint; endTime: TimePoint }[]): [number, number][] => {
+    const merged: [number, number][] = [];
+    for (const s of [...slots].sort((a, b) =>
+      (a.startTime.hour * 60 + a.startTime.minute) - (b.startTime.hour * 60 + b.startTime.minute)
+    )) {
+      const start = s.startTime.hour * 60 + s.startTime.minute;
+      const end = s.endTime.hour * 60 + s.endTime.minute;
+      if (merged.length && start <= merged[merged.length - 1][1]) {
+        merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], end);
+      } else {
+        merged.push([start, end]);
+      }
+    }
+    return merged;
+  };
+
+  const findGapInDay = (merged: [number, number][], floor: number): [number, number] | null => {
+    let cursor = Math.max(floor, EARLIEST_START);
+    for (const [start, end] of merged) {
+      if (cursor > LATEST_START) return null;
+      if (start - cursor >= SLOT_LENGTH) return [cursor, cursor + SLOT_LENGTH];
+      cursor = Math.max(cursor, end);
+    }
+    return cursor <= LATEST_START ? [cursor, cursor + SLOT_LENGTH] : null;
+  };
+
+  for (let offset = 0; offset <= maxDaysAhead; offset++) {
+    const candidateDate = addDaysIso(fromDate, offset);
+    const merged = mergeIntervals(occupiedByDate.get(candidateDate) ?? []);
+    const floor = candidateDate === todayStr
+      ? Math.ceil((now.getHours() * 60 + now.getMinutes()) / 30) * 30
+      : EARLIEST_START;
+    const found = findGapInDay(merged, floor);
+    if (found) return { date: candidateDate, start: fmt(found[0]), end: fmt(found[1]) };
+  }
+  return null;
+}
 
 // ---------- mock store ----------
 
@@ -338,6 +412,57 @@ export class MockStore implements Store {
     const r = this.requests.find(r => r.Id === id);
     if (!r) throw Object.assign(new Error('Request not found'), { status: 404 });
     return r;
+  }
+
+  async getRequest(id: string, techId: string): Promise<RequestRow> {
+    const r = this.mustGet(id);
+    if (r.Tech__c !== techId) {
+      throw Object.assign(new Error('Not your request'), { status: 403 });
+    }
+    const { JobId: _j, ...clean } = r;
+    return clean;
+  }
+
+  async getWeekActivity(techId: string, start: string, end: string): Promise<DayActivity[]> {
+    const byDate = new Map<string, DayActivity>();
+    const entry = (date: string) => {
+      let e = byDate.get(date);
+      if (!e) { e = { date, scheduled: false, pending: false, countered: false }; byDate.set(date, e); }
+      return e;
+    };
+    for (const a of this.assignments) {
+      if (a.techId !== techId || a.date < start || a.date > end) continue;
+      if (a.jobId === this.timeOffJob.Id) continue;
+      entry(a.date).scheduled = true;
+    }
+    for (const r of this.requests) {
+      if (r.Tech__c !== techId || r.Proposed_Date__c < start || r.Proposed_Date__c > end) continue;
+      if (r.Status__c !== 'Requested' && r.Status__c !== 'Countered') continue;
+      if (r.Type__c === 'Time off') continue;
+      const e = entry(r.Proposed_Date__c);
+      if (r.Status__c === 'Countered') e.countered = true; else e.pending = true;
+    }
+    return [...byDate.values()];
+  }
+
+  async getNextOpenGap(techId: string, fromDate: string, maxDaysAhead: number): Promise<{ date: string; start: string; end: string } | null> {
+    const toDate = addDaysIso(fromDate, maxDaysAhead);
+    const occupiedByDate = new Map<string, { startTime: TimePoint; endTime: TimePoint }[]>();
+    const push = (d: string, s: TimePoint, e: TimePoint) => {
+      const arr = occupiedByDate.get(d) ?? [];
+      arr.push({ startTime: s, endTime: e });
+      occupiedByDate.set(d, arr);
+    };
+    for (const a of this.assignments) {
+      if (a.techId !== techId || a.date < fromDate || a.date > toDate) continue;
+      push(a.date, toPoint(a.start), toPoint(a.end));
+    }
+    for (const r of this.requests) {
+      if (r.Tech__c !== techId || r.Proposed_Date__c < fromDate || r.Proposed_Date__c > toDate) continue;
+      if (r.Status__c !== 'Requested' && r.Status__c !== 'Countered') continue;
+      push(r.Proposed_Date__c, toPoint(r.Proposed_Start__c), toPoint(r.Proposed_End__c));
+    }
+    return findNextGap(occupiedByDate, fromDate, maxDaysAhead);
   }
 
   async acceptOffer(id: string, actor: 'Tech' | 'Office', actorTechId?: string): Promise<RequestRow> {

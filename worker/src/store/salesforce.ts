@@ -11,8 +11,9 @@
 //                     (same two-layer mem+KV pattern as crs-dispatch)
 
 import type {
-  Store, BoardResponse, BoardSlot, JobRow, RequestRow, CreateRequestInput, TimePoint,
+  Store, BoardResponse, BoardSlot, JobRow, RequestRow, CreateRequestInput, TimePoint, DayActivity,
 } from './store';
+import { addDaysIso, findNextGap } from './store';
 
 // ---------------------------------------------------------------------------
 // CONFIG: every org-specific name lives here. If a picker field or stage
@@ -558,11 +559,99 @@ export class SalesforceStore implements Store {
     const rq = CFG.request;
     const rows = await this.sf.query<any>(
       `SELECT Id, Type__c, ${rq.job}, ${rq.job.replace('__c', '__r')}.Name, ${rq.tech}, ${rq.requestedBy}, ` +
-      `CreatedDate, Proposed_Date__c, Proposed_Start__c, Proposed_End__c, Status__c, Last_Offer_By__c, Note__c ` +
+      `CreatedDate, Proposed_Date__c, Proposed_Start__c, Proposed_End__c, Status__c, Last_Offer_By__c, ` +
+      `Note__c, Office_Note__c, Resolved_At__c ` +
       `FROM ${rq.sobject} WHERE Id = '${esc(id)}' LIMIT 1`
     );
     if (!rows.length) throw httpError('Request not found', 404);
     return rows[0];
+  }
+
+  // Single-row lookup for NegotiationSheet -- avoids fetching+filtering the
+  // whole getMyRequests list just to find one row by id.
+  async getRequest(id: string, techName: string): Promise<RequestRow> {
+    const rq = CFG.request;
+    const r = await this.fetchRequest(id);
+    const techId = await this.resolveTech(techName);
+    if (r[rq.tech] !== techId) throw httpError('Not your request', 403);
+    return this.toRow(r);
+  }
+
+  // WeekStrip's dots: one lean pair of range queries instead of 7 full
+  // /api/board fetches. Only the 3 dot categories matter here -- time off
+  // is deliberately excluded, matching the dots WeekStrip has always shown
+  // (a time-off day renders no dot, same as before this endpoint existed).
+  async getWeekActivity(techName: string, start: string, end: string): Promise<DayActivity[]> {
+    const techId = await this.resolveTech(techName);
+    const a = CFG.assignment;
+    const rq = CFG.request;
+
+    const assignments = await this.sf.query<any>(
+      `SELECT ${a.workDate}, ${a.opp} FROM ${a.sobject} ` +
+      `WHERE ${a.tech} = '${esc(techId)}' AND ${a.workDate} >= ${start} AND ${a.workDate} <= ${end}`
+    );
+    const requests = await this.sf.query<any>(
+      `SELECT Proposed_Date__c, Type__c, Status__c FROM ${rq.sobject} ` +
+      `WHERE ${rq.tech} = '${esc(techId)}' AND Proposed_Date__c >= ${start} AND Proposed_Date__c <= ${end} ` +
+      `AND Status__c IN ('Requested','Countered')`
+    );
+
+    const byDate = new Map<string, DayActivity>();
+    const entry = (date: string) => {
+      let e = byDate.get(date);
+      if (!e) { e = { date, scheduled: false, pending: false, countered: false }; byDate.set(date, e); }
+      return e;
+    };
+    for (const r of assignments) {
+      if (r[a.opp] === this.env.TIME_OFF_OPPORTUNITY_ID) continue;
+      entry(r[a.workDate]).scheduled = true;
+    }
+    for (const r of requests) {
+      if (r.Type__c === 'Time off') continue;
+      const e = entry(r.Proposed_Date__c);
+      if (r.Status__c === 'Countered') e.countered = true; else e.pending = true;
+    }
+    return [...byDate.values()];
+  }
+
+  // ComposerSheet's "next open 2h gap" default window: one range query per
+  // object instead of up to 15 sequential per-day /api/board fetches. Time
+  // off DOES count as occupied here (unlike getWeekActivity's dots) --
+  // matches the original client-side logic, which merged every slot type
+  // returned by /api/board without filtering any out.
+  async getNextOpenGap(techName: string, fromDate: string, maxDaysAhead: number): Promise<{ date: string; start: string; end: string } | null> {
+    const techId = await this.resolveTech(techName);
+    const a = CFG.assignment;
+    const rq = CFG.request;
+    const toDate = addDaysIso(fromDate, maxDaysAhead);
+
+    const assignments = await this.sf.query<any>(
+      `SELECT ${a.workDate}, ${a.start}${a.end ? `, ${a.end}` : ''} FROM ${a.sobject} ` +
+      `WHERE ${a.tech} = '${esc(techId)}' AND ${a.workDate} >= ${fromDate} AND ${a.workDate} <= ${toDate}`
+    );
+    const requests = await this.sf.query<any>(
+      `SELECT Proposed_Date__c, Proposed_Start__c, Proposed_End__c FROM ${rq.sobject} ` +
+      `WHERE ${rq.tech} = '${esc(techId)}' AND Proposed_Date__c >= ${fromDate} AND Proposed_Date__c <= ${toDate} ` +
+      `AND Status__c IN ('Requested','Countered')`
+    );
+
+    const occupiedByDate = new Map<string, { startTime: TimePoint; endTime: TimePoint }[]>();
+    const push = (d: string, s: TimePoint, e: TimePoint) => {
+      const arr = occupiedByDate.get(d) ?? [];
+      arr.push({ startTime: s, endTime: e });
+      occupiedByDate.set(d, arr);
+    };
+    for (const r of assignments) {
+      const start = sfTimeToPoint(r[a.start]);
+      const end: TimePoint = a.end && r[a.end]
+        ? sfTimeToPoint(r[a.end])
+        : { hour: Math.min(start.hour + 2, 20), minute: start.minute };
+      push(r[a.workDate], start, end);
+    }
+    for (const r of requests) {
+      push(r.Proposed_Date__c, sfTimeToPoint(r.Proposed_Start__c), sfTimeToPoint(r.Proposed_End__c));
+    }
+    return findNextGap(occupiedByDate, fromDate, maxDaysAhead);
   }
 
   private toRow(r: any): RequestRow {

@@ -47,9 +47,9 @@ function NegotiationSheet({ request, mode = 'respond', onClose, onResolved, onAc
   useEffect(() => {
     const fetchDetail = async () => {
       try {
-        const res = await api('/api/requests?mine=1');
+        const res = await api(`/api/requests/${request.requestId}`);
         const data = await res.json();
-        const req = data.requests.find((r: any) => r.Id === request.requestId);
+        const req = data.request;
         setDetail(req);
         if (req) {
           setCounterDate(req.Proposed_Date__c);

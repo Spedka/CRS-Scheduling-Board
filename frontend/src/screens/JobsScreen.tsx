@@ -47,9 +47,12 @@ function JobsScreen({ refreshKey, onSelect, onComposerOpen, onTimeOffOpen, onVie
   // New search/sort, or a request was just submitted elsewhere: start over
   // from the first page so a job that's no longer open (or newly is)
   // reflects immediately instead of waiting for a manual re-search.
+  // Debounced the same way ComposerSheet's job picker is, so typing doesn't
+  // fire a request per keystroke.
   useEffect(() => {
-    fetchPage(0, true);
-  }, [fetchPage, refreshKey]);
+    const debounce = setTimeout(() => fetchPage(0, true), query ? 250 : 0);
+    return () => clearTimeout(debounce);
+  }, [fetchPage, refreshKey, query]);
 
   // Infinite scroll: load the next page once the sentinel at the bottom of
   // the list scrolls into view, same 25-at-a-time page the initial load

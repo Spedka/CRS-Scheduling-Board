@@ -65,23 +65,16 @@ function WeekStrip({ selectedDate, onDateChange }: WeekStripProps) {
 
   useEffect(() => {
     let cancelled = false;
+    const weekEnd = days[6]?.dateStr;
+    if (!weekStart || !weekEnd) return;
 
     const fetchWeekActivity = async () => {
       try {
-        const entries = await Promise.all(
-          days.map(async (day) => {
-            const res = await api(`/api/board?start=${day.dateStr}`);
-            const data = await res.json();
-            const slots: { type: string }[] = data.slots ?? [];
-            return [day.dateStr, {
-              scheduled: slots.some((s) => s.type === 'scheduled'),
-              pending: slots.some((s) => s.type === 'pending'),
-              countered: slots.some((s) => s.type === 'countered'),
-            }] as const;
-          })
-        );
+        const res = await api(`/api/board/week?start=${weekStart}&end=${weekEnd}`);
+        const data = await res.json();
+        const dayEntries: { date: string; scheduled: boolean; pending: boolean; countered: boolean }[] = data.days ?? [];
         if (!cancelled) {
-          setActivity(Object.fromEntries(entries));
+          setActivity(Object.fromEntries(dayEntries.map((d) => [d.date, d])));
         }
       } catch (err) {
         console.error('Failed to fetch week activity:', err);

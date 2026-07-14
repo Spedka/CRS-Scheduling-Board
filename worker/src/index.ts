@@ -110,6 +110,29 @@ app.get('/api/board', async (c) => {
   } catch (e) { return fail(c, e); }
 });
 
+// WeekStrip's dots for a date range -- one lean call instead of 7 full
+// /api/board fetches (one per visible day).
+app.get('/api/board/week', async (c) => {
+  const start = c.req.query('start');
+  const end = c.req.query('end');
+  if (!start || !end) return c.json({ error: 'start and end are required' }, 400);
+  try {
+    return c.json({ days: await c.get('store').getWeekActivity(c.get('techId'), start, end) });
+  } catch (e) { return fail(c, e); }
+});
+
+// ComposerSheet's default-window suggestion -- computed server-side over
+// one range query instead of up to 15 sequential per-day fetches.
+app.get('/api/board/gap', async (c) => {
+  const from = c.req.query('from');
+  const maxDays = Number(c.req.query('maxDays') ?? 14);
+  if (!from) return c.json({ error: 'from is required' }, 400);
+  try {
+    const gap = await c.get('store').getNextOpenGap(c.get('techId'), from, maxDays);
+    return c.json({ gap });
+  } catch (e) { return fail(c, e); }
+});
+
 // --- jobs picker ---
 app.get('/api/jobs', async (c) => {
   try {
@@ -130,6 +153,15 @@ app.get('/api/requests', async (c) => {
   try {
     const requests = await c.get('store').getMyRequests(c.get('techId'));
     return c.json({ requests });
+  } catch (e) { return fail(c, e); }
+});
+
+// Single-row lookup for NegotiationSheet -- avoids fetching+filtering the
+// whole list just to find one request by id.
+app.get('/api/requests/:id', async (c) => {
+  try {
+    const row = await c.get('store').getRequest(c.req.param('id'), c.get('techId'));
+    return c.json({ request: row });
   } catch (e) { return fail(c, e); }
 });
 

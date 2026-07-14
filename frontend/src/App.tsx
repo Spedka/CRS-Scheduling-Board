@@ -1,13 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import BoardScreen from './screens/BoardScreen.tsx';
-import JobsScreen from './screens/JobsScreen.tsx';
-import RequestsScreen, { isOpen } from './screens/RequestsScreen.tsx';
-import ComposerSheet from './sheets/ComposerSheet.tsx';
-import NegotiationSheet from './sheets/NegotiationSheet.tsx';
-import JobDetailSheet from './sheets/JobDetailSheet.tsx';
 import { getDeviceToken, redeemTokenFromUrl, redeemTokenFromPastedInput } from './auth';
 import { api } from './api';
 import { connectLiveUpdates } from './ws';
+import { isOpen } from './requestStatus';
+
+// Lazy-loaded: only Board renders on first paint (it's the default
+// activeScreen), so the other screens/sheets don't need to ship in the
+// initial bundle. isOpen is split into its own module specifically so this
+// file never statically imports RequestsScreen.tsx itself (a static import
+// of any binding from that module would force it eager, same chunk as the
+// default export).
+const JobsScreen = lazy(() => import('./screens/JobsScreen.tsx'));
+const RequestsScreen = lazy(() => import('./screens/RequestsScreen.tsx'));
+const ComposerSheet = lazy(() => import('./sheets/ComposerSheet.tsx'));
+const NegotiationSheet = lazy(() => import('./sheets/NegotiationSheet.tsx'));
+const JobDetailSheet = lazy(() => import('./sheets/JobDetailSheet.tsx'));
 // @ts-ignore: CSS side-effect import without type declarations
 import './App.css';
 
@@ -139,6 +147,7 @@ function App() {
 
   return (
     <div className="app">
+      <Suspense fallback={null}>
       <main className="screen-container">
         {activeScreen === 'board' && (
           <BoardScreen
@@ -264,6 +273,7 @@ function App() {
           }}
         />
       )}
+      </Suspense>
 
       {/* Tab bar */}
       <div className="tabbar">

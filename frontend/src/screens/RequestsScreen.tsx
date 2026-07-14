@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import './RequestsScreen.css';
 import { api } from '../api';
 import { getTechName, initialsOf } from '../auth';
+import { isOpen } from '../requestStatus';
 
 interface RequestsScreenProps {
   refreshKey?: number;
@@ -16,9 +17,6 @@ interface RequestsScreenProps {
   // the next server refetch to catch up.
   optimisticApprovals?: Set<string>;
 }
-
-// Needs a reply or is still waiting on the office -- not yet resolved.
-export const isOpen = (status: string) => status === 'Requested' || status === 'Countered';
 
 // Matches the server's own age format (see store.ts's ageOf) -- there's no
 // server-provided age for an arbitrary request in this list, only for the
