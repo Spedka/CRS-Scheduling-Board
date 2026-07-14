@@ -148,6 +148,7 @@ function App() {
         )}
         {activeScreen === 'jobs' && (
           <JobsScreen
+            refreshKey={refreshKey}
             onSelect={(job) => {
               setComposerJob(job);
               setActiveSheet('composer');

@@ -7,6 +7,7 @@ import { api } from '../api';
 import { getTechName, initialsOf } from '../auth';
 
 interface JobsScreenProps {
+  refreshKey?: number;
   onSelect: (job: any) => void;
   onComposerOpen: () => void;
   onTimeOffOpen: () => void;
@@ -15,7 +16,7 @@ interface JobsScreenProps {
 
 const PAGE_SIZE = 25;
 
-function JobsScreen({ onSelect, onComposerOpen, onTimeOffOpen, onViewDetail }: JobsScreenProps) {
+function JobsScreen({ refreshKey, onSelect, onComposerOpen, onTimeOffOpen, onViewDetail }: JobsScreenProps) {
   const [jobs, setJobs] = useState<any[]>([]);
   const [query, setQuery] = useState('');
   const [sort] = useState('due');
@@ -43,10 +44,12 @@ function JobsScreen({ onSelect, onComposerOpen, onTimeOffOpen, onViewDetail }: J
     }
   }, [query, sort]);
 
-  // New search/sort: start over from the first page.
+  // New search/sort, or a request was just submitted elsewhere: start over
+  // from the first page so a job that's no longer open (or newly is)
+  // reflects immediately instead of waiting for a manual re-search.
   useEffect(() => {
     fetchPage(0, true);
-  }, [fetchPage]);
+  }, [fetchPage, refreshKey]);
 
   // Infinite scroll: load the next page once the sentinel at the bottom of
   // the list scrolls into view, same 25-at-a-time page the initial load
