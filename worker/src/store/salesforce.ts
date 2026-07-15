@@ -14,6 +14,7 @@ import type {
   Store, BoardResponse, BoardSlot, JobRow, RequestRow, CreateRequestInput, TimePoint, DayActivity,
 } from './store';
 import { addDaysIso, findNextGap } from './store';
+import { notifyDispatchTv } from '../notifyDispatch';
 
 // ---------------------------------------------------------------------------
 // CONFIG: every org-specific name lives here. If a picker field or stage
@@ -98,6 +99,9 @@ interface Env {
   // (createAssignment), which also handles the Field Squared push. Absent
   // under dev-node (see dev-node.ts's DISPATCH_URL fallback for local dev).
   DISPATCH?: { fetch(req: Request): Promise<Response> };
+  // Shared secret for the DISPATCH.fetch(.../internal/tv-notify) call in
+  // notifyDispatch.ts -- must match crs-dispatch's own DISPATCH_TV_NOTIFY_SECRET.
+  DISPATCH_TV_NOTIFY_SECRET?: string;
 }
 
 // Sentinel the frontend sends as job_id for the "New WO Required" pick.
@@ -543,6 +547,7 @@ export class SalesforceStore implements Store {
     if (input.note) body.Note__c = input.note;
 
     const id = await this.sf.insert(rq.sobject, body);
+    await notifyDispatchTv(this.env, 'request-created');
     return {
       Id: id, Type__c: input.type,
       Job__c: jobId ? this.oppName.get(jobId) ?? jobId : null,
@@ -750,6 +755,11 @@ export class SalesforceStore implements Store {
       Status__c: 'Countered',
       Last_Offer_By__c: actor,
     });
+    // Office-initiated counters already originate inside crs-dispatch's own
+    // endpoints (scheduleRequests.js), which push their own TV refresh --
+    // only the tech-initiated half of this lifecycle needs the cross-worker
+    // hop here.
+    if (actor === 'Tech') await notifyDispatchTv(this.env, 'request-countered');
     return this.toRow({
       ...r, Proposed_Date__c: date,
       Proposed_Start__c: labelToSfTime(start), Proposed_End__c: labelToSfTime(end),
@@ -773,6 +783,7 @@ export class SalesforceStore implements Store {
       Proposed_Start__c: labelToSfTime(start),
       Proposed_End__c: labelToSfTime(end),
     });
+    await notifyDispatchTv(this.env, 'request-edited');
     return this.toRow({
       ...r, Proposed_Date__c: date,
       Proposed_Start__c: labelToSfTime(start), Proposed_End__c: labelToSfTime(end),
@@ -788,6 +799,7 @@ export class SalesforceStore implements Store {
       throw httpError(`Cannot withdraw a ${r.Status__c} request`, 409);
     const resolvedAt = new Date().toISOString();
     await this.sf.update(rq.sobject, r.Id, { Status__c: 'Withdrawn', Resolved_At__c: resolvedAt });
+    await notifyDispatchTv(this.env, 'request-withdrawn');
     return this.toRow({ ...r, Status__c: 'Withdrawn', Resolved_At__c: resolvedAt });
   }
 }

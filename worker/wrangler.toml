@@ -22,6 +22,12 @@ TIME_OFF_OPPORTUNITY_ID = "006Uh00000v6XJpIAM"
 binding = "DISPATCH"
 service = "crs-dispatch"
 
+# Used by notifyDispatch.ts to push a live refresh to crs-dispatch's
+# warehouse TV calendar whenever a tech creates/counters/edits/withdraws a
+# schedule request. Requires a DISPATCH_TV_NOTIFY_SECRET secret (wrangler
+# secret put DISPATCH_TV_NOTIFY_SECRET) matching crs-dispatch's own secret
+# of the same name.
+
 # Holds a live WebSocket per tech so crs-dispatch can push a "refresh" the
 # moment it changes something that matters to them -- see CLAUDE.md's "Live
 # push to the tech app" section. Also requires an INTERNAL_NOTIFY_SECRET
