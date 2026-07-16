@@ -23,21 +23,42 @@ function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onTimeOff
   const [view, setView] = useState<'me' | 'crew'>('me');
   const [boardData, setBoardData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchBoard = async () => {
       setLoading(true);
       try {
         const res = await api(`/api/board?start=${date}&view=${view}`);
         const data = await res.json();
+        if (cancelled) return;
         setBoardData(data);
+        setLoadError(false);
       } catch (err) {
         console.error('Failed to fetch board:', err);
+        // Deliberately don't clear boardData here -- if we already had a
+        // schedule loaded, keep showing it (stale but useful) rather than
+        // blanking the screen on a transient failure.
+        if (!cancelled) setLoadError(true);
       }
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     };
 
     fetchBoard();
+
+    // The fetch above only runs once on mount/dependency change. Without
+    // this, a tech who loses signal (or reopens the app after iOS silently
+    // reloaded it while offline) is stuck forever -- nothing re-triggers a
+    // fetch once connectivity actually comes back.
+    const retryOnReconnect = () => fetchBoard();
+    window.addEventListener('online', retryOnReconnect);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('online', retryOnReconnect);
+    };
   }, [date, view, refreshKey]);
 
   const handleDateChange = (newDate: string) => {
@@ -95,6 +116,21 @@ function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onTimeOff
             </div>
             <div className="chev">›</div>
           </div>
+        </div>
+      )}
+
+      {/* Offline / load failure banners -- never leave the tech looking at
+          a silently blank screen with no explanation of what's happening. */}
+      {loadError && boardData && (
+        <div className="alert offline-alert">
+          <div className="alert-content">
+            <div className="tx">Showing your last loaded schedule. Will refresh automatically once you're back online.</div>
+          </div>
+        </div>
+      )}
+      {loadError && !boardData && !loading && (
+        <div className="board-empty-state">
+          <p>Couldn't load your schedule. Check your connection — this will retry automatically once you're back online.</p>
         </div>
       )}
 

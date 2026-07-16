@@ -115,6 +115,51 @@
   color: var(--muted);
 }
 
+/* Alert banner */
+.alert {
+  margin: 0 18px 12px;
+  background: var(--ctr-bg);
+  border: 1px solid var(--ctr-bd);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+}
+
+/* Informational, not actionable -- muted instead of the attention-grabbing
+   countered-request color. */
+.offline-alert {
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.offline-alert .tx {
+  color: var(--muted);
+}
+
+.alert-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.alert .tx {
+  flex: 1;
+  font-size: 14px;
+  color: var(--ctr-tx);
+}
+
+.jobs-empty-state {
+  margin: 24px 18px;
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 /* Jobs list */
 .jobs {
   padding: 0 18px;

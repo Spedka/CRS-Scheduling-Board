@@ -36,14 +36,20 @@ const today = () => new Date().toISOString().slice(0, 10);
 function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOpen, onNegotiationOpen, optimisticApprovals }: RequestsScreenProps) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const fetchRequests = async () => {
     try {
       const res = await api('/api/requests?mine=1');
       const data = await res.json();
       setRequests(data.requests);
+      setLoadError(false);
     } catch (err) {
       console.error('Failed to fetch requests:', err);
+      // Deliberately don't clear requests here -- if we already had a list
+      // loaded, keep showing it (stale but useful) rather than blanking the
+      // screen on a transient failure. Mirrors BoardScreen's same handling.
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -51,6 +57,12 @@ function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOp
 
   useEffect(() => {
     fetchRequests();
+
+    // Without this, a tech who loses signal (or reopens the app after iOS
+    // silently reloaded it while offline) is stuck forever -- nothing
+    // re-triggers a fetch once connectivity actually comes back.
+    window.addEventListener('online', fetchRequests);
+    return () => window.removeEventListener('online', fetchRequests);
   }, [refreshKey]);
 
   // Merges in the optimistic override (if any) so the rest of a row --
@@ -121,7 +133,22 @@ function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOp
         </div>
       </div>
 
+      {/* Offline / load failure banners -- never leave the tech looking at
+          a silently blank screen with no explanation of what's happening. */}
+      {loadError && requests.length > 0 && (
+        <div className="alert offline-alert">
+          <div className="alert-content">
+            <div className="tx">Showing your last loaded requests. Will refresh automatically once you're back online.</div>
+          </div>
+        </div>
+      )}
+
       <div className="reqs">
+        {loadError && requests.length === 0 && !loading && (
+          <div className="requests-empty-state">
+            Couldn't load your requests. Check your connection — this will retry automatically once you're back online.
+          </div>
+        )}
         {loading && [0, 1, 2].map((i) => (
           <div key={i} className="reqcard">
             <div className="top">
@@ -136,7 +163,7 @@ function RequestsScreen({ refreshKey, onCountChange, onComposerOpen, onTimeOffOp
             </div>
           </div>
         ))}
-        {!loading && requests.length === 0 && (
+        {!loading && !loadError && requests.length === 0 && (
           <div className="empty">No current requests</div>
         )}
         {requests.map((rawReq) => {

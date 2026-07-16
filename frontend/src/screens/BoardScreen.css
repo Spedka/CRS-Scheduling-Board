@@ -131,6 +131,27 @@
   cursor: pointer;
 }
 
+/* Informational, not actionable -- muted instead of the attention-grabbing
+   countered-request color, and not clickable. */
+.offline-alert {
+  background: var(--bg);
+  border-color: var(--line);
+  cursor: default;
+}
+
+.offline-alert .tx {
+  color: var(--muted);
+}
+
+.board-empty-state {
+  margin: 24px 18px;
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .alert-content {
   display: flex;
   align-items: center;

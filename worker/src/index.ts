@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { MockStore, type Store } from './store/store';
 import { SalesforceStore } from './store/salesforce';
 import { createMagicLink, redeemMagicLink, resolveDeviceToken, signDeviceToken, getAuthSecret } from './auth';
+import { reportError } from './notifyError';
 
 // Durable Object class must be exported from the Worker's main entry script
 // for the wrangler.toml binding to resolve it.
@@ -42,8 +43,15 @@ app.use('*', async (c, next) => {
   await next();
 });
 
-const fail = (c: any, err: any) =>
-  c.json({ error: err?.message ?? 'Server error' }, err?.status ?? 500);
+// Every route handler's catch block funnels through here -- one place to
+// both log (baseline: `wrangler tail` always shows it) and email an alert
+// via Resend (see notifyError.ts). reportError never throws, so a broken
+// alert pipe can't turn one failure into two.
+const fail = async (c: any, err: any) => {
+  console.error(`[${c.req.path}]`, err?.message ?? err, err?.stack ?? '');
+  await reportError((c as any).env, err?.message ?? 'Server error', { stack: err?.stack, context: c.req.path });
+  return c.json({ error: err?.message ?? 'Server error' }, err?.status ?? 500);
+};
 
 // --- auth: magic link issuance + redemption ---
 // Dev convenience: no admin gate yet (matches /dev/office/* below). Add one

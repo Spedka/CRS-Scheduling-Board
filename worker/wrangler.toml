@@ -18,6 +18,17 @@ APP_URL = "https://chalkboard.crsbas.workers.dev"
 NEW_WO_OPPORTUNITY_ID = "006Uh00000v5szqIAA"
 TIME_OFF_OPPORTUNITY_ID = "006Uh00000v6XJpIAM"
 
+# Error-alert emails (see src/notifyError.ts / CLAUDE.md's "Task: Error
+# visibility for field techs"). ERROR_ALERT_TO is the address that gets
+# emailed on every caught Worker error. RESEND_FROM defaults to Resend's
+# sandbox sender (onboarding@resend.dev) if unset -- that sender only
+# delivers to the email address the Resend account itself was signed up
+# with. Swap in a verified-domain address (e.g. alerts@crssafetysolutions.com)
+# here once a domain is verified under Resend -> Domains. Also requires a
+# RESEND_API_KEY secret (wrangler secret put RESEND_API_KEY).
+ERROR_ALERT_TO = "l.sokolyuk@crssafetysolutions.com"
+RESEND_FROM = "onboarding@resend.dev"
+
 [[services]]
 binding = "DISPATCH"
 service = "crs-dispatch"

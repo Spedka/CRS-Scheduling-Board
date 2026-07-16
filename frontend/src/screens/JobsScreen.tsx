@@ -25,6 +25,7 @@ function JobsScreen({ refreshKey, onSelect, onComposerOpen, onTimeOffOpen, onVie
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const fetchPage = useCallback(async (offset: number, reset: boolean) => {
@@ -41,8 +42,13 @@ function JobsScreen({ refreshKey, onSelect, onComposerOpen, onTimeOffOpen, onVie
       const data = await res.json();
       setJobs((prev) => (reset ? data.jobs : [...prev, ...data.jobs]));
       setHasMore(data.jobs.length === PAGE_SIZE);
+      setLoadError(false);
     } catch (err) {
       console.error('Failed to fetch jobs:', err);
+      // Deliberately don't clear jobs here -- if a page was already loaded,
+      // keep showing it (stale but useful) rather than blanking the screen
+      // on a transient failure. Mirrors BoardScreen's same handling.
+      setLoadError(true);
     } finally {
       setLoadingMore(false);
       if (reset) setLoading(false);
@@ -58,6 +64,15 @@ function JobsScreen({ refreshKey, onSelect, onComposerOpen, onTimeOffOpen, onVie
     const debounce = setTimeout(() => fetchPage(0, true), query ? 250 : 0);
     return () => clearTimeout(debounce);
   }, [fetchPage, refreshKey, query]);
+
+  // Without this, a tech who loses signal (or reopens the app after iOS
+  // silently reloaded it while offline) is stuck forever -- nothing
+  // re-triggers a fetch once connectivity actually comes back.
+  useEffect(() => {
+    const retryOnReconnect = () => fetchPage(0, true);
+    window.addEventListener('online', retryOnReconnect);
+    return () => window.removeEventListener('online', retryOnReconnect);
+  }, [fetchPage]);
 
   // Infinite scroll: load the next page once the sentinel at the bottom of
   // the list scrolls into view, same 25-at-a-time page the initial load
@@ -100,8 +115,23 @@ function JobsScreen({ refreshKey, onSelect, onComposerOpen, onTimeOffOpen, onVie
         />
       </div>
 
+      {/* Offline / load failure banners -- never leave the tech looking at
+          a silently blank screen with no explanation of what's happening. */}
+      {loadError && jobs.length > 0 && (
+        <div className="alert offline-alert">
+          <div className="alert-content">
+            <div className="tx">Showing your last loaded jobs. Will refresh automatically once you're back online.</div>
+          </div>
+        </div>
+      )}
+
       {/* Jobs list */}
       <div className="jobs">
+        {loadError && jobs.length === 0 && !loading && (
+          <div className="jobs-empty-state">
+            Couldn't load jobs. Check your connection — this will retry automatically once you're back online.
+          </div>
+        )}
         {loading && [0, 1, 2, 3, 4].map((i) => (
           <div key={i} className="jobcard">
             <div className="info">
