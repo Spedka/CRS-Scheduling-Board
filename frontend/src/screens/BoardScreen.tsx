@@ -101,7 +101,7 @@ function BoardScreen({ date, onDateChange, refreshKey, onComposerOpen, onTimeOff
           className={`seg-btn ${view === 'crew' ? 'on' : ''}`}
           onClick={() => setView('crew')}
         >
-          Crew
+          All Techs
         </button>
       </div>
 

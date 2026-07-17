@@ -101,7 +101,7 @@ function CrewBoard({ slots, onSlotSelect }: CrewBoardProps) {
               </div>
               <span className={`crew-chevron ${isOpen ? 'open' : ''}`}>›</span>
             </button>
-            {isOpen && (
+            <div className={`crew-card-body-wrap ${isOpen ? 'open' : ''}`}>
               <div className="crew-card-body">
                 {tech.slots.map((slot) => (
                   <button
@@ -119,7 +119,7 @@ function CrewBoard({ slots, onSlotSelect }: CrewBoardProps) {
                   </button>
                 ))}
               </div>
-            )}
+            </div>
           </div>
         );
       })}

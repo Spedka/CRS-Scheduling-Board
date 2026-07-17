@@ -2,6 +2,8 @@
   padding: 0 18px 18px;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   gap: 9px;
   overflow-y: auto;
 }
@@ -18,6 +20,7 @@
   border-radius: 12px;
   background: var(--panel);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .crew-card-head {
@@ -76,7 +79,19 @@
   transform: rotate(90deg);
 }
 
+.crew-card-body-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+
+.crew-card-body-wrap.open {
+  grid-template-rows: 1fr;
+}
+
 .crew-card-body {
+  min-height: 0;
+  overflow: hidden;
   border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
